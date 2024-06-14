@@ -1,0 +1,59 @@
+/* To get the ld script for the Linux/WSL environment use */
+/* ld --verbose > ld.script */
+
+/* Copyright (C) 2014-2020 Free Software Foundation, Inc.
+   Copying and distribution of this script, with or without modification,
+   are permitted in any medium without royalty provided the copyright
+   notice and this notice are preserved.  */
+
+/*
+    N.B.
+    1)  The current IMP compiler can only generate 32-bit addresses.
+        Hence we only request and utilise the 32-bit ELF libraries.
+    2)  Also the IMP runtime library is layered on top of the C run-time
+        libraries.
+        Thus IMP code will run on those operating systems which include
+        the C run-time libraries.
+*/
+
+OUTPUT_FORMAT("elf32-i386")
+ENTRY(_start)
+SEARCH_DIR("=/lib32");
+SEARCH_DIR("=/libx32");
+SEARCH_DIR("=/usr/lib32");
+SEARCH_DIR("=/usr/local/lib");
+
+SECTIONS
+{
+    /*  
+        Include the IMP switch data
+        These individual switch arrays are uncollated
+        Also include the corresponding relocation data
+    */
+    . = ALIGN(32);
+    .imp.switch : { *(.switch ) }
+    .rel.imp.switch : { *(.rel.imp.switch) }
+
+    /*
+        The following IMP data sections are sorted into B,D,F order
+        Why B,C,F and not A,B,C?
+        Because we might need to insert extra sections
+        The B,D,F order is defined in the pass3 source code
+    */
+
+    /*
+        Include the IMP trap data and corresponding relocation data
+    */
+    . = ALIGN(32);
+    .trap : { *(.imp.trap.B) *(.imp.trap.D) *(.imp.trap.F) }
+    .rel.trap : { *(.rel.imp.trap.B) *(.rel.imp.trap.D) }
+
+    /*
+        Include the IMP line data and corresponding relocation data
+    */
+    . = ALIGN(256);
+    .lines : { *(.imp.line.B) *(.imp.line.D) *(.imp.line.F) }
+    .rel.lines : { *(.rel.imp.line.B) *(.rel.imp.line.D) }
+
+}
+INSERT AFTER .text;
