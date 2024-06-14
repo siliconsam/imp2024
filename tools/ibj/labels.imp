@@ -1,0 +1,150 @@
+
+!----------------------------------------------------------------------
+! label symbols: JUMP, JCOND, CALL, LABEL, REFLABEL, SWT, SWTWORD
+!----------------------------------------------------------------------
+! Labels information
+! Formed from JUMP,JCOND,CALL,LABEL,REFLABEL,SWT,SWTWORD
+! valid: from (ref > 0)
+! ref: from JUMP, JCOND, CALL, REFLABEL, SWTWORD
+%constinteger max labels = 5000
+%record %format alabel( %integer valid,
+                        %integer id,
+                        %integer ref,
+                        %integer line id )
+%own %record(alabel)%array labels(0:max labels)
+%own %integer last label;   ! indicates the last label index/id
+%own %integer first label;  ! indicates the first label index/id
+
+!----------------------------------------------------------------------
+! new label
+!----------------------------------------------------------------------
+%external %routine new label( %integer labelid, line id )
+    %if (labelid <= max labels) %start
+        first label = labelid %if (labelid < first label)
+        last label = labelid %if (labelid > last label)
+
+        labels(labelid)_line id = line id
+    %finish %else %start
+        debug string( "Labels range = 1.." )
+        debug string( itos(max labels,0) )
+        debug newline
+        debug string( "Label out of range whilst trying to add " )
+        debug string( itos(labelid,0) )
+        debug string( " at line=" )
+        debug string( itos(line id,0) )
+        debug newline
+    %finish
+%end
+
+!----------------------------------------------------------------------
+! reference label
+!----------------------------------------------------------------------
+%external %routine reference label( %integer labelid )
+    labels(labelid)_valid = 1
+    labels(labelid)_ref = labels(labelid)_ref + 1
+%end
+
+!----------------------------------------------------------------------
+! get label line
+!----------------------------------------------------------------------
+%external %integer %fn get label line( %integer labelid )
+    %integer line id
+
+    labels(labelid)_valid = 1
+    line id = labels(labelid)_line id
+
+    %result = line id
+%end
+
+!----------------------------------------------------------------------
+! prune LABEL items
+!----------------------------------------------------------------------
+%external %routine prune labels
+    %integer i
+    %integer label id
+
+    print string( "Pruning LABEL records" )
+    newline
+    labelid = 0
+    %if (first label <= last label) %start
+        %for i = first label,1,last label %cycle
+            %if (labels(i)_valid = 1) %start
+                labelid = labelid + 1
+                labels(i)_id = labelid
+            %finish
+        %repeat
+    %finish
+%end
+
+!----------------------------------------------------------------------
+! dump labels
+!----------------------------------------------------------------------
+%external %routine dump labels( %byte show invalid )
+    %integer i,label count
+
+    newline
+    print string( "Dumping Labels" )
+    newline
+    %if (show invalid = 1) %start
+        print string( "All label count = ")
+        label count = 1 + last label - 1000
+    %finish %else %start
+        print string( "Valid label count = ")
+        ! count how many valid labels
+        label count = 0
+        %for i = first label,1,last label %cycle
+            %if (labels(i)_valid = 1) %start
+                label count = label count + 1
+            %finish
+        %repeat
+    %finish
+    print string( itos( label count,0) )
+    newline
+
+    %if (label count > 0) %start
+        %for i = first label,1,last label %cycle
+            %if (show invalid = 1) %or (labels(i)_valid = 1) %start
+                print string( "[" )
+                print string( itos(i,5) )
+                print string( "/" )
+            %finish
+            %if (labels(i)_valid = 1) %start
+                print string( itos(labels(i)_id,5) )
+            %finish
+            %if (show invalid = 1) %and (labels(i)_valid # 1) %start
+                print string( itos(0,5) )
+            %finish
+            %if (show invalid = 1) %or (labels(i)_valid = 1) %start
+                print string( "] " )
+                print string( itos(labels(i)_ref,5) )
+                print string( ",@" )
+                print string( itos(labels(i)_lineid,5) )
+                print string( "/" )
+                %if (labels(i)_lineid = 0) %start
+                    print string( itos(0,5) )
+                %finish %else %start
+                    print string( itos(labels(i)_lineid,5) )
+                %finish
+                newline
+            %finish
+        %repeat
+    %finish
+%end
+
+!----------------------------------------------------------------------
+! initialise labels
+!----------------------------------------------------------------------
+%external %routine initialise labels
+    %integer i
+
+    %for i = 1,1,max labels %cycle
+        labels(i)_valid = 0
+        labels(i)_ref = 0
+        labels(i)_id = 0
+        labels(i)_line id = 0
+    %repeat
+    first label = max labels
+    last label = 0
+%end
+
+%endoffile

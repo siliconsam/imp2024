@@ -1,0 +1,177 @@
+
+    %integerfn hex2nibble ( %integer hex )
+        %integer r
+
+        r = 255
+        r = hex - '0' %if '0' <= hex <= '9'
+        r = hex - 'A' + 10 %if ('A' <= hex <= 'F') %or ('a' <= hex <= 'f')
+
+        %result = r
+    %end
+
+    %string(1)%fn nibble2hex( %integer x )
+        %string(1) r
+
+        r = ""
+        %if (10 <= x <= 15) %start
+           r = to string( 'A' + (x - 10) )
+        %finish
+        %if (0 <= x <= 9) %start
+           r = to string( '0' + x )
+        %finish
+
+        %result = r
+    %end
+
+    %external %integerfn hex2byte ( %string(255) s, %integer t )
+        %integer n0,n1
+        %integer r
+
+        ! do the low nibble of each byte
+        n0 = hex2nibble( charno( s, t + 0*2 + 1) )
+
+        ! do the high nibble of each byte
+        n1 = hex2nibble( charno( s, t + 0*2) )
+
+        r = 0
+        r = (r << 4) ! n1
+        r = (r << 4) ! n0
+        %result = r
+    %end
+
+    %external %integerfn hex2short( %string(255) s, %integer t )
+        %integer n0,n1,n2,n3
+        %integer r
+
+        ! do the low nibble of each byte
+        n0 = hex2nibble( charno( s, t + 0*2 + 1) )
+        n2 = hex2nibble( charno( s, t + 1*2 + 1) )
+
+        ! do the high nibble of each byte
+        n1 = hex2nibble( charno( s, t + 0*2) )
+        n3 = hex2nibble( charno( s, t + 1*2) )
+
+        r = 0
+        r = (r << 4) ! n3
+        r = (r << 4) ! n2
+        r = (r << 4) ! n1
+        r = (r << 4) ! n0
+
+        %if (r > 32767) %then r = r - 65536
+
+        %result = r
+    %end
+
+    %external %integerfn hex2integer( %string(255) s, %integer t )
+        %integer n0,n1,n2,n3,n4,n5,n6,n7
+        %integer r
+
+        ! do the low nibble of each byte
+        n0 = hex2nibble( charno( s, t + 0*2 + 1) )
+        n2 = hex2nibble( charno( s, t + 1*2 + 1) )
+        n4 = hex2nibble( charno( s, t + 2*2 + 1) )
+        n6 = hex2nibble( charno( s, t + 3*2 + 1) )
+
+        ! do the high nibble of each byte
+        n1 = hex2nibble( charno( s, t + 0*2) )
+        n3 = hex2nibble( charno( s, t + 1*2) )
+        n5 = hex2nibble( charno( s, t + 2*2) )
+        n7 = hex2nibble( charno( s, t + 3*2) )
+
+        r = (r << 4) ! n7
+        r = (r << 4) ! n6
+        r = (r << 4) ! n5
+        r = (r << 4) ! n4
+        r = (r << 4) ! n3
+        r = (r << 4) ! n2
+        r = (r << 4) ! n1
+        r = (r << 4) ! n0
+
+        %result = r
+    %end
+
+    %external %string(127)%fn hex2name( %string(255) s, %integer t )
+        %string(255) name
+        %integer i
+        %string(127) r
+
+        name = substring( s, t, length( s ) )
+
+        r = ""
+        %for i = 1, 1, (length( name ) // 2) %cycle
+            r = r.to string ( hex2byte ( name, 2*i - 1 ) )
+        %repeat
+
+        %result = r
+    %end
+
+    %external %string(255)%fn hex2code( %string(255) s, %integer t )
+        %string(255) r
+
+        r = substring( s, t, length( s ) )
+
+        %result = r
+    %end
+
+    %external %string(1)%fn itype2hex( %integer x )
+        %string(1) r
+
+        r = to string( 'A' + x)
+
+        %result = r
+    %end
+
+    %external %string(2)%fn byte2hex( %integer x )
+        %string(2) r
+
+        r = ""
+        r = r.nibble2hex( (x >> 4) &15 )
+        r = r.nibble2hex( (x >> 0) &15 )
+
+        %result = r
+    %end
+
+    %external %string(4)%fn short2hex( %integer x )
+        %string(4) r
+
+        r = ""
+        r = r.nibble2hex( (x >> 4) &15 )
+        r = r.nibble2hex( (x >> 0) &15 )
+        r = r.nibble2hex( (x >> 12) &15 )
+        r = r.nibble2hex( (x >> 8) &15 )
+
+        %result = r
+    %end
+
+    %external %string(8)%fn integer2hex( %integer x )
+        %string(8) r
+
+        r = ""
+        ! Low 16 bits == 4 hex digits
+        r = r.nibble2hex( (x >> 4) &15 )
+        r = r.nibble2hex( (x >> 0) &15 )
+        r = r.nibble2hex( (x >> 12) &15 )
+        r = r.nibble2hex( (x >> 8) &15 )
+
+        ! High 16 bits == 4 hex digits
+        r = r.nibble2hex( (x >> 20) &15 )
+        r = r.nibble2hex( (x >> 16) &15 )
+        r = r.nibble2hex( (x >> 28) &15 )
+        r = r.nibble2hex( (x >> 24) &15 )
+
+        %result = r
+    %end
+
+    %external %string(255)%fn name2hex( %string(127) s )
+        %string(255) r
+        %integer i
+
+        r = ""
+        %for i = 1, 1, length( s ) %cycle
+            r = r.byte2hex( charno( s, i ) )
+        %repeat
+
+        %result = r
+    %end
+
+%end %of %file
