@@ -1,0 +1,241 @@
+
+%constinteger bytesize      = 1
+%constinteger integersize   = 4
+
+{------------------------------------------------------------------------------}
+! If the implineheader or impline record formats are altered then
+! amend trapsize accordingly
+! Noting the record format for impline = 2@integer
+! So, linesize equals 2*size of(integer)
+%recordformat implineheader( %string(251) source, %integer count )
+%recordformat impline( %integer lineno,lineaddress )
+
+%constinteger implineheadersize = 256
+%constinteger linesize = 2*integersize
+
+%external %integer %spec linebase %alias "_implinebase"
+%external %integer %spec linelimit  %alias "_implinelimit"
+
+{------------------------------------------------------------------------------}
+%string(255) %function getsourcename( %record(implineheader)%name lp )
+    %string(251) sourcename
+
+    sourcename = lp_source
+
+    %result = sourcename
+%end
+{------------------------------------------------------------------------------}
+%integer %function getlinecount( %record(implineheader)%name lp )
+    %result = lp_count
+%end
+{------------------------------------------------------------------------------}
+%record(impline) %map getlinex( %record(implineheader)%name lp, %integer x )
+    %integer linexaddress
+
+    %if (0 < x  <= getlinecount(lp)) %start
+        linexaddress = addr(lp) + 256 + (x - 1)*8
+    %finish %else %start
+        linexaddress = 0
+    %finish
+
+    %result == record(linexaddress)
+%end
+{------------------------------------------------------------------------------}
+%integer %function getNextHeaderAddress( %integer lpAddress )
+    %integer nextAddress
+    %integer lines
+    %record(implineheader)%name lp
+
+    lp == record(lpAddress)
+
+    lines = getlinecount( lp )
+    %if (0 < lines ) %start
+        ! ensure the next address value is aligned properly
+        nextAddress = lpAddress + 256 + (lines*8 + 255)&16_ffffff00
+    %finish %else %start
+        nextAddress = lpAddress + 256
+    %finish
+
+    %result = nextAddress
+%end
+{------------------------------------------------------------------------------}
+%integer %function getLineNumber( %integer lpAddress, lookupAddress )
+    %record(implineheader)%name lp
+    %record(impline) thisLine, nextLine
+    %integer i,count
+    %integer lineNumber
+
+    lp == record(lpAddress)
+
+    ! Check if this header has at least one line entry
+    count = getLineCount(lp)
+
+    ! set a default line number value
+    lineNumber = 0
+
+    %if (count > 1) %start
+        ! ok, we have at least one or more potential address ranges
+        ! formed by pairs of line entries
+
+        ! So look up each pair of line entries
+        %for i=1,1,count - 1 %cycle
+            thisLine = getLineX( lp, i )
+            nextLine = getLineX( lp, i + 1 )
+            ! We now have a range of addresses for "thisline"
+            ! Ass-u-me that the line address for a given line
+            ! represents the start of the code for that line
+            ! So, if this.address < lookup <= next.address then
+            ! lookup is on this.line
+
+            ! so, is the lookupaddress in this range
+            %if (thisLine_lineAddress < lookupAddress <= nextLine_lineAddress) %start
+                lineNumber = thisLine_lineno
+            %finish
+        %repeat
+
+        ! if we haven't seen the lookupAddress yet
+        ! then it must match the last linenumber
+    %finish
+    lineNumber = getLineX( lp, count )_lineno %if (lineNumber = 0)
+
+    ! ok, we have the linenumber
+    %result = lineNumber
+%end
+{------------------------------------------------------------------------------}
+%predicate isAddressInModule( %integer lpAddress, lookupAddress )
+    %record(implineheader)%name lp
+    %record(impline) firstLine, lastLine
+    %integer count
+
+    lp == record(lpAddress)
+
+    ! Check if this header has at least one line entry
+    count = getLineCount(lp)
+    %false %if (count = 0)
+
+    ! ok, at least one or more entries
+    firstLine = getLineX( lp, 1 )
+    lastLine = getLineX( lp, count )
+
+    ! are we looking at an address before this header
+    %false %if (lookupAddress < firstLine_lineAddress)
+
+    ! are we looking at an address after this header
+    %false %if (lookupAddress > lastLine_lineAddress)
+
+    ! It seems that this lookup address is contained within this header
+    %true
+%end
+{------------------------------------------------------------------------------}
+%routine dumplines( %integer lpAddress )
+    %integer i
+    %record(impline) linex
+    %record(implineheader)%name lp
+ 
+    lp == record(lpAddress)
+
+    printstring( "FileName='".getsourcename(lp)."'" )
+    newline
+    %for i = 1,1,getlinecount(lp) %cycle
+        linex = getlinex(lp,i)
+
+        printstring( "line=".itos(linex_lineno,0) )
+        printstring( ", " )
+        printstring( "address=".int2hex(linex_lineaddress,8) )
+        newline
+    %repeat
+    newline
+%end
+{------------------------------------------------------------------------------}
+%external %routine dumpalllineinfo
+    %integer count, lpAddress
+    %integer baseAddress,limitAddress
+
+    baseAddress = addr(linebase)
+    limitAddress = addr(linelimit)
+    newline
+    printstring( "**** IMP LINE DATA-STRUCTURE START ****" )
+    newline
+    newline
+    printstring( "    _implinebase    @(".int2hex(baseAddress,8).")" );newline
+    printstring( "    _imptlinelimit  @(".int2hex(limitAddress,8).")" );newline
+
+    ! We iterate over the table of line header + line data blocks
+    !    from _implinebase upto _implinelimit.
+    lpAddress = baseAddress
+    %while (lpAddress <> limitAddress) %cycle
+        dumplines( lpAddress )
+        lpAddress = getNextHeaderAddress( lpAddress )
+    %repeat
+    dumplines( lpAddress )
+
+    newline
+    newline
+    printstring( "**** IMP LINE DATA-STRUCTURE END ****" )
+    newline
+    newline
+%end
+{------------------------------------------------------------------------------}
+%external %string(255) %function address2module( %integer lookupAddress )
+    %integer count, lpAddress
+    %integer baseAddress,limitAddress
+    %record(implineheader)%name lp
+    %string(251) module
+
+    baseAddress = addr(linebase)
+    limitAddress = addr(linelimit)
+
+    module = ""
+    ! We iterate over the table of line header + line data blocks
+    !    from _implinebase upto _implinelimit.
+    lpAddress = baseAddress
+    %while (lpAddress <= limitAddress) %cycle
+        %if isAddressInModule( lpAddress, lookupAddress ) %start
+            lp == record(lpAddress)
+
+            module = getsourcename( lp )
+            ! A hack to exit the loop
+            lpAddress = limitAddress + 4
+        %finish %else %start
+            lpAddress = getNextHeaderAddress( lpAddress )
+        %finish
+    %repeat
+
+    %result = module
+%end
+{------------------------------------------------------------------------------}
+%external %integer %function address2line( %integer lookupAddress )
+    %integer count, lpAddress
+    %integer baseAddress,limitAddress
+    %record(implineheader)%name lp
+    %integer linenumber
+
+    baseAddress = addr(linebase)
+    limitAddress = addr(linelimit)
+
+    ! Set a default linenumber
+    linenumber = 0
+
+    ! Now iterate over the table of line header + line data blocks
+    !     from _implinebase upto _implinelimit.
+    lpAddress = baseAddress
+    %while (lpAddress <= limitAddress) %cycle
+        ! check if the lookupAddress matches a line in this module
+        %if isAddressInModule( lpAddress, lookupAddress ) %start
+            ! oh, it is in the current header
+
+            ! so, get the line
+            linenumber = getlinenumber( lpAddress, lookupAddress )
+            ! A hack to exit the loop
+            lpAddress = limitAddress + 4
+        %finish %else %start
+            lpAddress = getNextHeaderAddress( lpAddress )
+        %finish
+    %repeat
+
+    ! NB a default value of 0 is possible
+    !    in the event we couldn't find the lookup address
+    %result = linenumber
+%end
+{------------------------------------------------------------------------------}
+%endoffile

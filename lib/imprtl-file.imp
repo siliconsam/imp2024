@@ -1,0 +1,69 @@
+{----------------------------------------------------------------------------}
+    %include "imprtl-file.inc"
+{----------------------------------------------------------------------------}
+    %external %routine exit( %integer status )
+        prim exit( status )
+    %end
+{----------------------------------------------------------------------------}
+    %external %integer %fn get error
+        %result = prim get err
+    %end
+{----------------------------------------------------------------------------}
+    %external %integer %fn getstderrhandle
+        %result = prim geterrhandle
+    %end
+{----------------------------------------------------------------------------}
+    %external %integer %fn getstdinhandle
+        %result = prim getinhandle
+    %end
+{----------------------------------------------------------------------------}
+    %external %integer %fn getstdouthandle
+        %result = prim getouthandle
+    %end
+{----------------------------------------------------------------------------}
+    %external %integer %fn openfile ( %integer mode address, %integer file name address )
+        %result = prim openfile( mode address, file name address )
+    %end
+{----------------------------------------------------------------------------}
+    %external %integer %fn tell ( %integer handle )
+        %result = prim tell( handle )
+    %end
+{----------------------------------------------------------------------------}
+    %external %routine file rewind( %integer handle )
+        prim file rewind( handle )
+    %end
+{----------------------------------------------------------------------------}
+    %external %routine file seek ( %integer handle, displacement, pos )
+        prim file seek( handle, displacement, pos )
+    %end
+{----------------------------------------------------------------------------}
+    %external %routine close( %integer handle )
+        prim close( handle )
+    %end
+{----------------------------------------------------------------------------}
+    %external %integer %fn readbytes( %integer handle, count, itemsz, %byte %name buffer )
+        %result = prim readbytes( handle, count, itemsz, buffer )
+    %end
+{----------------------------------------------------------------------------}
+    %external %integer %fn writebytes( %integer handle, count, itemsz,%byte %name buffer )
+        %result = prim writebytes( handle, count, itemsz, buffer )
+    %end
+{----------------------------------------------------------------------------}
+    %external %predicate file end( %integer handle )
+        %false %if prim eof( handle ) = 0
+        %true
+    %end
+{----------------------------------------------------------------------------}
+    %external %integer %fn get char( %integer handle )
+        %result = prim get char( handle )
+    %end
+{----------------------------------------------------------------------------}
+    %external %routine put char( %integer handle,ch )
+        prim put char( handle,ch )
+    %end
+{----------------------------------------------------------------------------}
+    %external %routine flush( %integer handle )
+        prim flush( handle )
+    %end
+{----------------------------------------------------------------------------}
+%endoffile

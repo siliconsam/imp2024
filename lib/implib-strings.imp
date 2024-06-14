@@ -1,0 +1,870 @@
+{----------------------------------------------------------------------------}
+    %external %routine newline
+        printsymbol(nl)
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %routine space
+        printsymbol(' ')
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %routine newlines( %integer count )
+        %while count > 0 %cycle
+            printsymbol(nl)
+            count = count - 1
+        %repeat
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %routine spaces(%integer count)
+        %while count > 0 %cycle
+            printsymbol(' ')
+            count = count - 1
+        %repeat
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %routine printstring( %string(255) s)
+        %integer l, i
+
+        l = length(s)
+
+        %for i = 1, 1, l %cycle
+            printsymbol(charno(s, i))
+        %repeat
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %string(255) %function sub string(%string(255) s, %integer from, to)
+        %integer get, put
+        %string(255) temp
+
+        ! Do some defensive error checking first
+        %signal 6, 2, from %unless 0 <= from <= length(s)
+        %signal 6, 2, to   %unless 0 <= to   <= length(s)
+        %signal 5, 3       %unless from <= to
+
+        ! We don't use string operations, and instead hand-poke
+        ! the characters, relying on the compiler primitive map
+        ! functions to plant efficient code
+
+        length(temp) = (to - from) + 1
+        put = 1
+        get = from
+        %while get <= to %cycle
+            charno(temp, put) = charno(s, get)
+            put = put + 1
+            get = get + 1
+        %repeat
+
+        %result = temp
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %routine To Lower(%string(*)%name s)
+        %integer i
+        %byte %name p
+
+        %for i=1,1,length(s) %cycle
+            p == charno(s,i)
+            %if 'A' <= p <= 'Z' %then p = p + ('a'-'A')
+        %repeat
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %routine To Upper(%string(*)%name s)
+        %integer i
+        %byte %name p
+
+        %for i=1,1,length(s) %cycle
+            p == charno(s,i)
+            %if 'a' <= p <= 'z' %then p = p - ('a'-'A')
+        %repeat
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %string(255) %function trim(%string(255) s, %integer max)
+
+        ! Do some defensive error checking first
+        %signal 6, 2, max %if max < 0
+
+        ! tweak our parameter and return it
+        %if length(s) > max %then length(s) = max
+
+        %result = s
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %string(255) %function int2hex( %integer nn, places )
+        %constinteger base = 16
+
+        %own %string(16) basechar = "0123456789ABCDEF"
+        %string(31) reversed,human
+        %integer n,i
+
+        length(reversed) = 0
+
+        n = nn
+        %while (n # 0) %cycle
+            length(reversed) = length(reversed) + 1
+            charno(reversed,length(reversed)) = charno(basechar,1+(n&15))
+            n = n >> 4
+        %repeat
+
+        ! Pad out the digits with zero's if places more than actual number of 'digits'
+        %if (places > length(reversed)) %start
+            %while length(reversed) < places %cycle
+                length(reversed) = length(reversed) + 1
+                charno(reversed,length(reversed)) = '0'
+            %repeat
+        %finish
+
+        ! Now reverse the digits for human readability.
+        length(human) = 0
+        %for i = length(reversed), -1, 1 %cycle
+            length(human) = length(human) + 1
+            charno(human,length(human)) = charno( reversed, i )
+        %repeat
+
+        %result = human
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %string(16) %function short2bin( %short nn )
+        %constinteger base = 2
+
+        %own %string(2) basechar = "01"
+        %string(16) human
+        %integer i
+
+        human = "0000000000000000"
+
+        %for i = 1,1,16 %cycle
+            charno(human,17 - i) = charno(basechar,1+(nn&1))
+            nn = nn >> 1
+        %repeat
+
+        %result = human
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %string(32) %function int2bin( %integer nn )
+        %constinteger base = 2
+
+        %own %string(2) basechar = "01"
+        %string(32) human
+        %integer i
+
+        human = "00000000000000000000000000000000"
+
+        %for i = 1,1,32 %cycle
+            charno(human,33 - i) = charno(basechar,1+(nn&1))
+            nn = nn >> 1
+        %repeat
+
+        %result = human
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %string(255) %function int2ascii( %integer nn, base, places )
+
+        %own %string(36) basechar = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        %string(255) reversed, human
+        %integer n, np, r, i, negative;
+
+        ! Validate the number base
+        ! Since basechar has from 1 to 36 characters,
+        !   we can only output numbers to base 2 thru 36.
+        ! Of course if we add more characters then ...
+        ! NB a number to base 1 cannot sensibly be displayed
+        %if (base < 2) %then base = 10
+        %if (base > 36) %then base = 10
+
+        length(reversed) = 0
+        n = nn
+        %if (n = 0) %start
+            r = 0
+            ! string index starts at 1 - but r starts from 0
+            ! so if r = 0 we want char 1 in the "basechar" string etc...
+            length(reversed) = length(reversed) + 1
+            charno(reversed,length(reversed)) = charno(basechar,r + 1)
+        %else
+            ! Now to avoid problems with -MAXINT
+            %if (n > 0) %start
+                negative = 0
+                n = -n
+            %else
+                negative = 1
+            %finish
+
+            %while (n < 0) %cycle
+                np = n // base
+                r = (np * base) - n
+                ! string index starts at 1 - but r starts from 0
+                ! so if r = 0 we want char 1 in the "basechar" string etc...
+                length(reversed) = length(reversed) + 1
+                charno(reversed,length(reversed)) = charno(basechar,r + 1)
+                n = np
+            %repeat
+
+            %if (negative > 0) %start
+                length(reversed) = length(reversed) + 1
+                charno(reversed,length(reversed)) = '-'
+            %finish
+        %finish
+
+        ! Now we adjust Places, also slightly mysteriously
+        %if places <= 0 %then places = -places %else places = places + 1
+
+        ! Pad out the digits with blank spaces if places more than actual number of 'digits'
+        %if (places > length(reversed)) %start
+            %while length(reversed) < places %cycle
+                length(reversed) = length(reversed) + 1
+                charno(reversed,length(reversed)) = ' '
+            %repeat
+        %finish
+
+        ! Now reverse the digits for human readability.
+        length(human) = 0
+        %for i = length(reversed), -1, 1 %cycle
+            length(human) = length(human) + 1
+            charno(human,length(human)) = charno( reversed, i )
+        %repeat
+
+        %result = human
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    ! format the number to the given number base
+    ! and prefix by the number base expressed in base 10
+    %external %string(255) %function formatNumber( %integer n,base,places)
+        %string(255) s,x
+        %integer i
+
+        %if base = 10 %start
+            x = int2ascii( n, base, places)
+        %else
+            s = int2ascii( n, base, 0)
+            x = int2ascii( base, 10, places - length(s)  - 1 )
+
+            length(x) = length(x) + 1
+            charno(x,length(x)) = '_'
+            %for i = 1,1,length(s) %cycle
+                length(x) = length(x) + 1
+                charno(x,length(x)) = charno(s,i)
+            %repeat
+        %finish
+
+        %result = x
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %string(255) %function I to S(%integer n, places)
+        %string(255) s
+	
+        s = int2ascii( n, 10, places )
+
+        %result = s
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    ! Write an integer on the current output stream, to
+    ! occupy PLACES character spaces on the page.
+    ! Nominally based on PrintString(I to S(n, places))
+    ! This version doesn't use strings though, and is
+    ! therefore smaller and quicker.  It builds the
+    ! characters "backwards" in an array
+    %external %routine Write(%integer n, places)
+        %string(32) ch;      ! Enough room for a 32 bit integer, plus sign
+        %integer new, digit, sign, i
+
+        length(ch) = 0
+        ! First collect the digits
+        %if n = 0 %start
+            length(ch) = length(ch) + 1
+            charno(ch,length(ch)) = '0'
+            sign = 0
+        %else
+            sign = 1
+            ! we make everything negative to avoid the -ve MaxInt wrap problem
+            %if n > 0 %start
+                sign = 0
+                n = -n
+            %finish
+
+            %while n # 0 %cycle
+                new = n // 10
+                digit = (new * 10) - n
+                length(ch) = length(ch) + 1
+                charno(ch,length(ch)) = digit+'0'
+                n = new
+            %repeat
+        %finish
+
+        ! Now deal with the sign, taking into account the slightly
+        ! idiosyncratic behaviour on positive numbers
+        %if sign # 0 %start
+            length(ch) = length(ch) + 1
+            charno(ch,length(ch)) = '-'
+        %else
+            %if places > 0 %start
+                length(ch) = length(ch) + 1
+                charno(ch,length(ch)) = ' '
+            %finish
+        %finish
+
+        ! Now we adjust Places, also slightly mysteriously
+        %if places <= 0 %then places = -places %else places = places + 1
+
+        ! The array at CH now contains the characters (backwards)
+        ! and the character count is in NEXT
+
+        %while places > length(ch) %cycle
+            length(ch) = length(ch) + 1
+            charno(ch,length(ch)) = ' '
+            places = places - 1
+        %repeat
+
+        %for i=length(ch),-1,1 %cycle
+            print symbol( charno(ch,i))
+        %repeat
+
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    ! Convert a floating point number to a string, along the lines of
+    ! +/-nnn.nnn@+/-nn, to occupy Places character spaces
+    !                        with sf significant figures.
+    ! Rounding/truncation will occur to ensure sf limits
+    !
+    ! %longreal f = floating point number to convert to a string
+    ! %integer sf = number of significant figures required
+    !      places = number of characters in converted string
+    !
+    ! N.B. sf must be in the range of accuracy of %longreal (<15)
+    !  places must be slightly greater than sf
+    !         (to allow for sign and scientific notation)
+    !         sign uses 1 character (+ is omitted)
+    !         decimal point uses 1 character
+    !         scientific notation could use :
+    !                1 char for "@" ndicating scientific notation
+    !                1 char for sign of exponent (sign always present)
+    !                1+ char for integer exponent
+    !
+    ! N.B. scientific notation is only used if the decimal string could
+    !      not fit in the places required
+    !
+    ! eg. F to S (0.003999, 3, 7) -> " 0.004 " (note rounding creates zeros after the 4)
+    ! or
+    ! eg. F to S (0.003999, 3, 4) -> " 4.00@-3" (converted to scientific notation to fit)
+    ! eg. F to S (0.003999, 3, 6) -> " 0.004" (fits exactly)
+    !
+    %external %string(255) %function F to S( %longreal f, %integer sf, places)
+        %string(255) s,sx
+        %string(15) science
+        %integer dc,carry
+        %integer sign,exponent, digit, point
+
+        %if (sf > 14) %then sf = 14
+
+        %begin
+            %integer i
+            %integerarray digits(1:sf+1)
+
+            sign = 0
+
+            %for i = 1,1,sf+1 %cycle
+                digits(i) = 0
+            %repeat
+
+            %if (f < 0) %then sign = 1 %and f = -f
+
+            ! clear the floating point string
+            length(s) = 0
+
+            %if (f = 0) %start
+                ! convert to positive zero
+                sign = 0
+                dc = 2
+                sf = 2
+                exponent = 0
+                point = 1
+            %finish %else %start
+                ! prepare the exponent, point values for (f # 0)
+                ! evaluate the exponent value
+                exponent = 0
+                %while f < 1 %cycle
+                    f = f * 10
+                    exponent = exponent - 1
+                %repeat
+
+                %while f >= 10 %cycle
+                    f = f / 10
+                    exponent = exponent + 1
+                %repeat
+
+                ! locate the decimal point
+                point = 1
+                ! zero the digit count
+                dc = 0
+
+                ! Loop to get the significant figure digits with an extra digit
+                ! so we can use it to round the the required sig figs
+                ! Rounding as we go through this loop can "oversize" the digit.
+                ! The next stage does the rounding to the correct sig fig.
+                %for i = 1,1,sf + 1 %cycle
+                    digit = int pt(f)
+                    %if (digit > 9) %then digit = 9
+                    dc = dc + 1
+                    digits(dc) = digit
+                    f = (f - digit)*10
+                %repeat
+
+                ! do the rounding to the sf significant figures
+                %if (digits(dc) > 4) %start
+                    ! we need to possibly round up the digits sequence
+                    carry = 1
+                    %for i = dc - 1,-1,1 %cycle
+                        digits(i) = digits(i) + carry
+                        %if (digits(i) > 9) %start
+                            carry = 1
+                            digits(i) = 0
+                        %finish %else %start
+                            carry = 0
+                        %finish
+                    %repeat
+                %finish
+                ! ignore the rounding digit
+                dc = dc - 1
+
+                ! Now eliminate any trailing zeros
+                ! We assume that rounding has created
+                ! a sequence of trailing zeros
+                %while (digits(dc) = 0) %and (dc > 1) %cycle
+                    dc = dc - 1
+                %repeat
+                sf = dc
+            %finish
+
+            length(s) = 0
+            point = 1
+            %for i = 1,1,sf %cycle
+                s = s.tostring(digits(i) + '0')
+                %if (point = i) %then s = s."."
+            %repeat
+            %if (sf = point) %then s = s."0"
+            %if (exponent < 0) %then s=s."@-".itos(-exponent,0)
+            %if (exponent > 0) %then s=s."@+".itos(exponent,0)
+            science = s
+
+            ! So, now for the other floating point layouts
+            ! we should see which version will fit into the places allowed
+            ! 1) 0.00000nnnn (point <= 0)
+            ! OR
+            ! 2) nnnn.0 (point = sf)
+            ! OR
+            ! 3) nnnn00000.0 (point > sf)
+            !
+            length(s) = 0
+            point = exponent + 1
+            ! First form the sig fig digit string
+            ! possibly including a decimal point
+            %for i = 1,1,sf %cycle
+                s = s.tostring(digits(i) + '0')
+                %if (point = i) %then s = s."."
+            %repeat
+
+            ! Checking for format (1)
+            ! 1) 0.00000nnnn (point <= 0)
+            %if (point <= 0) %start
+                %for i=1,1,-point %cycle
+                    s = "0".s
+                %repeat
+                s = "0.".s
+            %finish
+
+            ! Checking for format (2)
+            ! 2) nnnn.0 (point = sf)
+            %if (point = sf) %start
+                s = s."0"
+            %finish
+
+            ! Checking for format (3)
+            ! 3) nnnn00000.0 (point > sf)
+            %if (point > sf) %start
+                %for i = 1,1,(point - sf) %cycle
+                    s = s."0"
+                %repeat
+                s = s.".0"
+            %finish
+
+            ! Check to see which fits scientific v decimal notation
+            ! Preference is for the decimal notation
+            %if (length(s) > places) %start
+                s = science
+            %finish
+
+            %if (sign # 0) %start
+                s = "-".s
+            %finish %else %start
+                s = " ".s
+            %finish
+
+            %if (length(s) < places) %start
+                %while (length(s) < places) %cycle
+                    s = s." "
+                %repeat
+            %finish
+        %end
+
+        %result = s
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    ! Convert a floating point number to a string, along the lines of
+    ! +/-nnn.nnn@+/-nn, to occupy Places character spaces
+    ! Rounding/truncation of sig fig will occur to ensure places limits
+    !
+    ! %longreal f = floating point number to convert to a string
+    ! %integer places = number of characters in converted string
+    !
+    ! N.B. places must be slightly greater than sig fig with exponent
+    !         (to allow for sign and scientific notation)
+    !         sign uses 1 character
+    !         decimal point uses 1 character
+    !         scientific notation could use :
+    !                1 char for "@" ndicating scientific notation
+    !                1 char for sign of exponent
+    !                1+ char for integer exponent
+    !
+    ! N.B. scientific notation is only used if the decimal string could
+    !      not fit in the places required
+    !
+    ! eg. F to S (0.003999, 7) -> 0.00400
+    ! or
+    ! eg. F to S (0.003999, 7) -> 4.00@-3
+    ! eg. F to S (0.003999, 5) -> 0.004
+    !
+    %external %string(255) %function F to SP( %longreal f, %integer places)
+        %string(255) s
+        %integer sign
+        %integer exponent
+        %integer iszero
+        %integer slots
+
+        ! ass-u-me a positive real number
+        sign = 0
+
+        ! allow for the decimal point
+        slots = places - 1
+
+        ! allow for the negative sign
+        %if (f < 0) %then sign = 1 %and f = -f %and slots = slots - 1
+
+        %if (f = 0) %start
+            ! convert to positive zero
+            sign = 0
+
+            ! Set the exponent
+            exponent = 0
+
+            ! indicate this is a zero value
+            iszero = 1
+        %finish %else %start
+            ! Ok, this is a non-zero positive floating point number
+            ! So, convert f to a float in range 1.NNNN to 9.NNNN
+            ! and simultaneously determine the corresponding exponent
+            ! Thus the original f is now in scientific format
+
+            ! start with zero exponent value
+            exponent = 0
+
+            %while f < 1 %cycle
+                f = f * 10
+                exponent = exponent - 1
+            %repeat
+
+            %while f >= 10 %cycle
+                f = f / 10
+                exponent = exponent + 1
+            %repeat
+
+            ! Seems to be a non-zero real number
+            iszero = 0
+        %finish
+
+        ! now to layout the f,exponent format
+        ! use "implicit" sub-block so we dynamically size the slots available
+        %begin
+            %integer dc;                     ! count of digits used == #sig figs
+            %integer carry;                  ! temporary carry used when rounding
+            %integer point;                  ! location of decimal point
+            %integer digit;                  ! individual digit in sig fig
+            %integer i;                      ! loop variable
+            %integer start,last;             ! location of first,last digit
+            %integer useexps;                ! flag to indicate using exps
+            %integerarray digits(1:slots+1); ! holds the sig fig digits
+            %string(15) exps;                ! holds the exponent as a string
+
+            ! initialise the digits
+            %for i = 1,1,slots + 1 %cycle
+                digits(i) = 0
+            %repeat
+
+            %if (iszero # 0) %start
+                ! Determine the number of digits
+                dc = slots
+            %finish %else %start
+                ! Ok, this is a non-zero floating point number
+
+                ! zero the digit count
+                dc = 0
+
+                ! Loop to get the places digits
+                ! so we can use it to round to the required places
+                ! Rounding as we go through this loop can "oversize" the digit.
+                ! The next stage does the rounding to the correct accuracy
+                %for i = 1,1,slots + 1 %cycle
+                    digit = int pt(f)
+                    %if (digit > 9) %then digit = 9
+                    digits(i) = digit
+                    f = (f - digit)*10
+                %repeat
+                dc = slots + 1
+            %finish
+
+            ! We now have the floating point number in scientific format
+            ! f = M.NNNNN@EEEE  M.NNNNN has dc digits (no decimal point)
+            !                   EEEE represents the exponent
+            !
+            ! M == sig fig before point=1..9 (M=0 if f = 0)
+            ! N == sig fig after  point=0..9
+            !
+            ! However we have not utilised the exponent value
+            ! EXPS = string containing "@EXP" where EXP could include - sign
+            !
+            ! To include the exponent, we have a number of choices
+            ! N.B. point = 1 + exponent
+            ! 1) f = 0.0000      (exponent = 0) AND (M = 0)
+            ! 2) f = M.NNNN      (exponent = 0) AND (M # 0)
+            ! 3) f = MNN.NN      (exponent > 0) AND (exponent < slots)
+            ! 4) f = MNNNN0000.0 (exponent > 0) AND (exponent >= slots)
+            !                                   AND (slots = LENGTH(MXX@EXP))
+            !        M.XX@EXP
+            ! 5) f = MNNNN0000.0 (exponent > 0) AND (exponent >= slots)
+            !                                   AND (slots < LENGTH(MXX@EXP))
+            !        M.NNNN@EXP  overflow the slots
+            ! 6) f = 0.0000MNNNN (exponent < 0) AND (slots = LENGTH(MXX@-EXP))
+            !                                   AND (1 < LENGTH(MXX))
+            !        0.0000MXX
+            ! 7) f = 0.0000MNNNN (exponent < 0) AND (slots < LENGTH(MX@-EXP))
+            !        M.NNNN@-EXP overflow the slots
+
+            ! clear the floating point string
+            length(s) = 0
+
+            ! create the exponent string
+            exps="@".itos(exponent,0)
+
+            ! Go through the cases
+            %if (exponent = 0) %start
+                ! 1) 0.0000
+                ! or
+                ! 2) M.NNNN
+                useexps = 0
+                point = 1
+                start = point
+                last = slots
+                dc = slots
+            %finish %else %if (exponent > 0) %start
+                %if (slots > exponent) %start
+                    ! (3) MNN.NN
+                    useexps = 0
+                    point = 1 + exponent
+                    start = 1
+                    last = slots
+                    dc = slots
+                %finish %else %start
+                    ! (4) MNNNN0000.0
+                    ! (5) M.NNNN@EXP     overflow the slots
+                    useexps = 1
+                    point = 1
+                    start = 1
+                    last = slots - length(exps)
+                    dc = last
+                %finish
+            %finish %else %if (exponent < 0) %start
+                %if (slots > -exponent) %start
+                    ! (6) 0.0000MXX
+                    useexps = 0
+                    point = 1 + exponent
+                    start = point
+                    last = slots + exponent
+                    dc = last
+                %finish %else %start
+                    ! (7) M.NNNN@-EXP    overflow the slots
+                    useexps = 1
+                    point = 1
+                    start = 1
+                    last = slots - length(exps)
+                    dc = last
+                %finish
+            %finish
+
+            ! do the rounding to the required places
+            ! check the digit AFTER the last one
+            ! if 0..4 no rounding to zero
+            ! if 5..9 do roundind to zero
+            %if (digits(dc+1) > 4) %start
+                ! we need to possibly round up the digits sequence
+                carry = 1
+                %for i = dc,-1,1 %cycle
+                    digits(i) = digits(i) + carry
+                    %if (digits(i) > 9) %start
+                        carry = 1
+                        digits(i) = 0
+                    %finish %else %start
+                        carry = 0
+                    %finish
+                %repeat
+            %finish
+            ! Always clear the rounding digit
+            digits(dc+1) = 0
+
+            ! Now eliminate any trailing zeros
+            ! We assume that rounding has created
+            ! a sequence of trailing zeros
+            %while (digits(dc) = 0) %and (dc > 2) %cycle
+                dc = dc - 1
+            %repeat
+
+            %for i = start,1,last %cycle
+                %if (i < 1) %then s = s."0" %else s = s.tostring(digits(i) + '0')
+                %if (point = i) %then s = s."."
+            %repeat
+
+            %if (useexps # 0) %start
+                s = s.exps
+            %finish
+
+            %if (sign # 0) %start
+                s = "-".s
+            %finish
+
+        %end
+
+        %result = s
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    %external %routine print real(%longreal f, %integer sf,places)
+        printstring( F to S( f, sf, places ) )
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    ! Print a floating point number out, along the lines of
+    ! +/-nnn.nnn@+/-nn, to occupy Places character spaces.
+    ! Note - there's a bug in this code such that it does not
+    ! round the number properly.  EG 3.999999999 to 4 places
+    ! should be 4.00 but we print 3.99
+
+    %external %routine print(%longreal x, %integer places)
+        %integer exponent, digit, point, printexpo
+
+        %if x = 0 %start
+            printsymbol('0')
+            printsymbol('.')
+            printsymbol('0')
+            %while places > 3 %cycle
+                printsymbol('0')
+                places = places - 1
+            %repeat
+            %return
+        %finish
+
+        %if x < 0 %then printsymbol('-') %and x = -x %and places = places - 1
+
+        %if places < 3 %then places = 3
+   
+        exponent = 0
+        printexpo = 0
+
+        %while x < 1 %cycle
+            x = x * 10
+            exponent = exponent - 1
+        %repeat
+
+        %while x >= 10 %cycle
+            x = x / 10
+            exponent = exponent + 1
+        %repeat
+
+        ! Now X is between 1.0 and 9.99 and exponent is set accordingly
+        ! If the exponent is "large" we will use scientific notation
+        point = places - 2;     ! for useful digits after the "0."
+        %if exponent >= places %or exponent < -point %start
+            printexpo = exponent
+            exponent = 0
+            places = places - 2
+        %finish
+
+        ! Now the exponent is small-ish
+        %if exponent < 0 %start;      ! 0.nnnn
+            printsymbol('0')
+            printsymbol('.')
+            places = places - 2
+
+            %while exponent < -1 %cycle
+                printsymbol('0')
+                exponent = exponent + 1
+                places = places - 1
+            %repeat
+
+            point = -1; ! because we've already passed that
+        %else;          ! nnn.nnn
+            point = exponent
+        %finish
+
+        %while places > 0 %cycle
+            digit = int pt(x)
+            ! Rounding as we go through this loop can "oversize" the digit.  This
+            ! of course tells us that we should have printed (eg) 40000 but we
+            ! are now stuck with printing 39999
+            %if digit > 9 %then digit = 9
+            printsymbol(digit + '0')
+            x = (x - digit)*10
+            %if point = 0 %then printsymbol('.') %and places = places - 1
+            point = point - 1
+            places = places - 1
+        %repeat
+
+        %if printexpo # 0 %start
+            printsymbol('@')
+            write(printexpo, 1)
+        %finish
+    %end
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+    ! INTPT - return the integer part of a real.  Note that this is
+    ! NOT the same as the built-in primitive "INT" which returns the
+    ! nearest integer to the real according to IEEE rounding rules.
+    ! Thus, INTPT(1.9) = 1, whereas INT(1.9) = 2.  INTPT uses INT
+    ! and then adjusts the rounding to truncate.
+    %external %integer %function Int Pt(%longreal x)
+        %integer i
+
+        i = int(x)
+        %if i # 0 %then %start; ! zero is the easy answer
+            x = x - i
+            %if i > 0 %start; ! correct towards zero - depends which way that is :-)
+                %if x < 0 %then i = i - 1
+            %else
+                %if x > 0 %then i = i + 1
+            %finish
+        %finish
+        %result = i
+    %end
+{----------------------------------------------------------------------------}
+
+%endoffile

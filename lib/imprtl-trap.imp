@@ -1,0 +1,316 @@
+
+%constinteger bytesize      = 1
+%constinteger integersize   = 4
+%constinteger max event     = 16
+
+{------------------------------------------------------------------------------}
+! If the imptrap record format is altered then amend trapsize accordingly
+! Noting the record format for imptrap (4@integer + 16@byte
+! So, trapsize equals 4*size of(integer) + 16*size of(byte)
+%recordformat imptrap( %integer start,end,trapep,from, %c
+                       %byte %array data(0:15) )
+
+%constinteger trapsize = 4*integersize + 16*bytesize
+
+%own %record(imptrap) notrapinfo
+
+%external %record(imptrap)   %spec trapbase %alias "_imptrapbase"
+%external %record(imptrap)   %spec traplimit  %alias "_imptraplimit"
+
+! Remember the address of the first trap (i.e. address of "_imptrapbase")
+%own %integer baseTrapAddress = 0
+
+! Remember the address of the last valid trapentry BEFORE _imptraplimit
+%own %integer limitTrapAddress = 0
+{------------------------------------------------------------------------------}
+%routine findTrapAddressLimits
+    %record(imptrap) %name tp
+
+    basetrapaddress = addr(trapbase)
+    tp == trapbase
+    %while (addr(tp) < addr(traplimit)) %cycle
+        limitTrapAddress = addr(tp)
+        tp == record( addr(tp) + trapsize )
+    %repeat
+%end
+{------------------------------------------------------------------------------}
+%string(16) %function formeventlist( %integer events )
+    %string(16) eventlist
+    %integer i
+
+    eventlist = ""
+    %for i = max event - 1,-1,0 %cycle
+        %if (((1 << i) & events) # 0) %start
+            eventlist = eventlist."1"
+        %else
+            eventlist = eventlist."0"
+        %finish
+    %repeat
+
+    %result = eventlist
+%end
+{------------------------------------------------------------------------------}
+%string(16) %function formeventpattern( %integer event )
+    %string(16) eventlist
+    %integer eventbit
+
+    eventbit = 0
+    %if (0 < event) %and (event < max event) %then eventbit = 1 << event
+    
+    eventlist = formeventlist( eventbit)
+
+    %result = eventlist
+%end
+{------------------------------------------------------------------------------}
+%string(14) %function getprocname( %record(imptrap)%name tp )
+    %string(14) procname
+    %integer i
+
+    length(procname) = 0
+    %for i= 1,1,14 %cycle
+        %if (tp_data(i+1) # 0) %start
+            length(procname) = length(procname) + 1
+            charno(procname,i) = tp_data(i+1)
+        %finish
+    %repeat
+
+    %result = procname
+%end
+{------------------------------------------------------------------------------}
+%routine dumptrap( %integer trapindex, trapaddress )
+    %integer events,i
+    %string(14) procname
+    %string(16) eventlist
+    %record(imptrap)%name tp
+
+    tp == record(trapaddress)
+
+    ! Form the bit pattern for the events
+    ! Left-most bit is most significant event (=event 16)
+    ! Right-most bit is least significant event (=event 0)
+    events = (tp_data(1) << 8) + tp_data(0)
+    eventlist = ""
+    %for i = max event - 1,-1,0 %cycle
+        %if (((1 << i) & events) # 0) %start
+            eventlist = eventlist."1"
+        %else
+            eventlist = eventlist."0"
+        %finish
+    %repeat
+
+    procname = getprocname( tp )
+
+    debugstring( " | ".itos(trapindex,4) )
+    debugstring( " | ".int2hex(addr(tp),8) )
+    debugstring( " | '".procname."'" );debugspaces(14-length(procname))
+    debugstring( " | ".int2hex(tp_start,8) )
+    debugstring( " | ".int2hex(tp_end,8) )
+    debugstring( " | ".eventlist )
+    debugstring( " | ".int2hex(tp_trapep,8) )
+    debugstring( " | ".int2hex(tp_from,8)." |" )
+    debugnewline
+%end
+{------------------------------------------------------------------------------}
+%routine dumpsignalhandled( %integer address, on event, %record(imptrap)%name tp )
+
+    debugstring("'handler found':")
+    debugstring(" valid event handler detected for address data")
+    debugnewline
+
+    debugstring( " |      " )
+    debugstring( " | ".int2hex(addr(tp),8) )
+    debugstring( " |                 " )
+    debugstring( " |  address = ".int2hex(address,8) )
+    debugstring( " | ".formeventpattern(on event) )
+    debugstring( " |         " )
+    debugstring( " |          |" )
+    debugnewline
+
+    dumptrap( 0, addr(tp) )
+    debugnewline
+    debugnewline
+%end
+{------------------------------------------------------------------------------}
+%external %routine dumpalltrapinfo
+    %record(imptrap)%name tp
+    %integer count, tpaddress
+
+    ! Ensure we determine the limiting addresses of the trapentry table
+    ! By finding the address of _imptrapbase
+    ! and the address of the last trapentry BEFORE _imptraplimit
+    %if (baseTrapAddress = 0) %or (limitTrapAddress = 0) %then findTrapAddressLimits
+
+    debugnewline
+    debugstring( "**** IMP TRAP DATA-STRUCTURE START ****" )
+    debugnewline
+    debugnewline
+    debugstring( "    _imptrapbase @(".int2hex(addr(trapbase),8).")" )
+    debugnewline
+    debugstring( "    _imptraplimit  @(".int2hex(addr(traplimit),8).")" )
+    debugnewline
+    debugnewline
+    debugstring(" +-------+----------+------------------+----------+----------+------------------+----------+----------+");debugnewline
+    debugstring(" | Id    |  Trap    |    Routine       | Start    | End      |  Events          | EP       | From     |");debugnewline
+    debugstring(" +-------+----------+------------------+----------+----------+------------------+----------+----------+");debugnewline
+
+    ! We iterate over the table of trap blocks
+    count = 0
+
+    !    from _imptraplimit down to _imptrapbase.
+    %for tpaddress = basetrapaddress,trapsize,limitTrapAddress %cycle
+        count = count + 1
+
+        dumptrap( count, tpaddress )
+    %repeat
+
+    debugstring(" +-------+----------+------------------+----------+----------+------------------+----------+----------+");debugnewline
+    debugnewline
+    debugstring( "**** IMP TRAP DATA-STRUCTURE END ****" )
+    debugnewline
+    debugnewline
+
+%end
+{------------------------------------------------------------------------------}
+%record(imptrap) %map findTrapEntry( %integer address )
+    %record(imptrap)%name tp,found
+    %integer tpaddress
+
+    ! Beware!
+    ! IMP allows the embedding of routines inside routines.
+    ! This IMP compiler does NOT unravel/exbed nested routine code.
+    !
+    ! So the trapentry for a nested routine will follow the trapentry
+    ! of the enclosing routine. This means trapentries are planted in the
+    ! same order as code routines are defined.
+    ! Accordingly, the trapentry for the enclosing routine will have
+    ! an address range which overlaps that of the enclosed routine.
+    !
+    ! But we must find the trapentry of the nested routine.
+    !
+    ! So when searching the table of trapentries in increasing code/trap
+    ! order we want the LAST trapentry which matches the required address.
+    ! Thus we could search the trapentry table in REVERSE order from
+    ! _imptraplimit down to _imptrapbase and select the FIRST match.
+    !
+    ! To be able to carry out the REVERSE order search of the trapentry
+    ! table, we need to determine the addresses of the first and last
+    ! trapentries in the trapentry table.
+    ! That is we need to find the address of _imptrapbase and the address
+    ! of the last trapentry BEFORE _imptraplimit
+    %if (baseTrapAddress = 0) %or (limitTrapAddress = 0) %then findTrapAddressLimits
+
+    found == notrapinfo
+
+    ! We iterate over the table of trap blocks
+    !    from _imptraplimit down to _imptrapbase.
+    ! By using trapentry address values we can use a %for loop
+    ! by iterating with disguised address arithmetic
+    ! (which also ASS-U-MEs integer size == address size)
+    %for tpaddress = limitTrapAddress,-trapsize,basetrapaddress %cycle
+        tp == record( tpaddress )
+
+        %if ((tp_start <= address <= tp_end)) %start
+            found == tp
+            %exit
+        %finish
+    %repeat
+
+    %result == found
+%end
+{------------------------------------------------------------------------------}
+%external %predicate handler found ( %integer event, address )
+    %record(imptrap)%name tp
+    %integer eventbit,trapbits
+
+    ! First, default eventbit to ensure no matching event is found
+    eventbit = 0;
+
+    ! Next, whilst checking event has a legal value (1..16)
+    ! we convert event into eventbit to match in trapbits
+    ! where event N becomes eventbit 2^N
+    %if (0 < event) %and (event < max event) %then eventbit = 1 << event
+
+    ! Now to find a trapentry for the specified address        
+    tp == findtrapentry( address )
+
+    ! Drat, we have NOT found a trapentry for this address
+    %false %if (tp == notrapinfo)
+
+    ! At this point, we have found a trapentry for this address
+    ! Now grab the trapentry trapbits pattern
+    trapbits = (tp_data(1) << 8) + tp_data(0)
+
+    ! At this point we have a valid trapentry for this address
+    ! But will the trapbits for this trapentry catch the event?
+
+    ! Check by testing if eventbit is present in the trapbits pattern
+    ! Simple test is to bitwise and the eventbit and trapbits values
+    ! Zero result means eventbit is not in trapbits
+    ! Non-zero result means eventbit is in trapbits
+    %if ((eventbit & trapbits) = eventbit) %start
+
+        %if (debugmode = dbgtrap) %then dumpsignalhandled( address, event, tp )
+
+        %true
+    %finish %else %false
+%end
+{------------------------------------------------------------------------------}
+%external %predicate initial entry found ( %integer address )
+    %record(imptrap)%name tp
+    %string(14) procname
+
+    ! beware if we are passed a zero address
+    %false %if (address = 0)
+
+    ! ok, we could look for a trap
+    ! Now to find a trapentry for the specified address        
+    tp == findtrapentry( address )
+
+    ! check we found a real trap
+    %false %if (tp == notrapinfo)
+
+    ! get the routine name containing the event handler
+    procname = getprocname( tp )
+
+    ! We have two choices of when to exit the "loop"
+    ! (1) if we've reached the %begin..%end program entry point
+    !     => a "last-ditch" handler must be in the program
+    !     %true %if (procname = "Main Program")
+    !
+    ! (2) if we've reached the IMP entry point
+    !     => a default "last-ditch" handler can be in the runtime system
+    !     %true %if (procname = "STARTIMP")
+    !
+    ! Case (2) is the current choice and an appropriate "last-ditch" event
+    ! handler is provided inside the top-level RTL routine "StartImp"
+    ! inside the rtl library code file imprtl-main.imp
+    !
+
+    ! Exit loop if we've reached the IMP entry point
+    %true %if (procname = "STARTIMP")
+
+    %false
+%end
+{------------------------------------------------------------------------------}
+%external %string(14) %function handler name( %integer address )
+    %record(imptrap)%name tp
+    %string(14) procname
+
+    ! Now to find a trapentry for the specified address        
+    tp == findtrapentry( address )
+
+    ! get the routine name containing the event handler
+    %result = getprocname( tp )
+%end
+{------------------------------------------------------------------------------}
+%external %integer %function handler entry address( %integer address )
+    %record(imptrap)%name tp
+
+    ! Now to find a trapentry for the specified address        
+    tp == findtrapentry( address )
+
+    ! get the routine name containing the event handler
+    %result = tp_trapep
+%end
+{------------------------------------------------------------------------------}
+%endoffile

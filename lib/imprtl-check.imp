@@ -1,0 +1,53 @@
+
+    ! Special hidden routines only inserted by the pass2 of the compiler
+    ! when the %control directive forces (control&4 # 0) - bit 2 set
+    ! These routines can trigger an %event X,Y,Z as a side-effect
+    ! should the corresponding test fail.
+    ! They all return a possibly amended value of the integer parameter
+    ! in %EAX register
+
+    ! "impcheck1" checks if x in range -32768..32767
+    !   - failure returns %EAX = 0 and triggers %event 1,6,x
+    !   - success returns %EAX = x
+    %external %routine imp check 1( %integer x )
+        %if (-32768 <= x <= 32767) %start
+            *mov _ %eax,x
+        %finish %else %start
+            %if (x < 0) %start
+                *mov _ %eax,#-32768
+            %finish %else %start
+                *mov _ %eax,#32767
+            %finish
+            %signal 1,6,x
+        %finish
+    %end
+
+    ! "impcheck2" checks if x in range -32768..32767 AND (x # 0)
+    !   - failure returns %EAX = 0 and triggers %event 1,6,x
+    !   - success returns %EAX = x
+    %external %routine imp check 2( %integer x)
+        %if (-32768 <= x <= 32767) %and (x # 0) %start
+            *mov _ %eax,x
+        %finish %else %start
+            %if (x < 0) %start
+                *mov _ %eax,#-32768
+            %finish %else %start
+                *mov _ %eax,#32767
+            %finish
+            %signal 1,6,x
+        %finish
+    %end
+
+    ! "impcheck3" checks if (x # 0)
+    !   - failure returns %EAX = 1 and triggers %event 1,4
+    !   - success returns %EAX = x
+    %external %routine imp check 3( %integer x)
+        %if (x # 0) %start
+            *mov _ %eax,x
+        %finish %else %start
+            *mov _ %eax,#0
+            %signal 1,4
+        %finish
+    %end
+
+%endoffile

@@ -1,0 +1,5 @@
+{------------------------------------------------------------------------------}
+%external %integer traplimit %alias "traplimit"
+%external %integer linelimit %alias "linelimit"
+{------------------------------------------------------------------------------}
+%endoffile

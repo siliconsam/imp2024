@@ -1,0 +1,313 @@
+{------------------------------------------------------------------------------}
+    %external %routine impstrcat ( %byte %name dst, src, %integer len)
+        %integer i
+        %integer count
+        %byte dlen,slen
+        %byte %name srcx,dstx
+
+        %if (len = 0) %then len = MAXLENIMPSTRING; ! string(*)name - comes from general %name's etc
+
+        dlen = dst;   ! pick up existing destination length
+        slen = src;   ! fetch the source length
+
+        %signal 6,1,1 %if (slen + dlen > len)
+
+        count = slen
+        dlen = dlen + count
+
+        ! update the destination count
+        dstx == byteinteger( addr( dst) ); ! get the address
+        dstx = dlen;                       ! set the new length
+
+        ! copy across the source chars
+        %for i = 1,1,count %cycle
+            srcx == byteinteger( addr(src) + i )
+            dstx == byteinteger( addr(dst) + (dlen - count) + i )
+            dstx = srcx
+        %repeat
+    %end
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+    ! strcmp returns a number comparable to the state of the
+    ! strings (-1 = less than, 0 = equal, 1 = more than)
+    %external %integer %function impstrcmp ( %byte %name l,r )
+        %integer lcount, rcount, index
+        %byte lx,rx
+
+        lcount = l; ! pick up the counts
+        rcount = r;
+
+        index = 1
+        %while (lcount > 0) %and (rcount > 0) %cycle
+            lx = byteinteger( addr( l ) + index ); ! get the address
+            rx = byteinteger( addr( r ) + index ); ! get the address
+
+            %result =  1 %if (lx > rx)
+            %result = -1 %if (rx > lx)
+
+            index = index + 1
+            lcount = lcount - 1
+            rcount = rcount - 1
+        %repeat
+
+        ! here we ran out of characters on one or both sides
+        %result =  1 %if (lcount > 0)
+        %result = -1 %if (rcount > 0)
+
+        ! if here, the strings are identical
+        %result = 0
+    %end
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+    %external %routine impstrcpy ( %byte %name dst, src, %integer len)
+        %integer i
+        %integer count
+        %byte dlen,slen
+        %byte %name srcx,dstx
+
+        %if (len = 0) %then len = MAXLENIMPSTRING; ! string(*)name - comes from general %name's etc
+
+        dlen = 0;      ! destination length = 0
+        slen = src;    ! fetch the source length
+
+        %signal 6,1,2 %if (slen > len)
+
+        count = slen
+        dlen = dlen + count;
+
+        ! update the destination count
+        dstx == byteinteger( addr( dst) ); ! get the address
+        dstx = dlen;                       ! set the new length
+
+        ! copy across the source chars (and the lengths)
+        %for i = 1,1,count %cycle
+            srcx == byteinteger( addr(src) + i )
+            dstx == byteinteger( addr(dst) + i )
+            dstx = srcx
+        %repeat
+    %end
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+    %external %routine impstrjam ( %byte %name dst,src, %integer len)
+        %integer i
+        %integer count
+        %byte slen,dlen
+        %byte %name srcx,dstx
+
+        %if (len = 0) %then len = MAXLENIMPSTRING; ! string(*)name - comes from general %name's etc
+
+        dlen = dst;   ! pick up existing destination length
+        slen = src;   ! fetch the source length
+
+        %if (slen > len) %start { force the length to fit }
+            count = len
+        %else
+            count = slen
+        %finish
+        dlen = count
+
+        ! update the destination count
+        dstx == byteinteger( addr( dst) ); ! get the address
+        dstx = dlen;                       ! set the new length
+
+        ! copy across the source chars (and length) 
+        %for i = 1,1,count %cycle
+            srcx == byteinteger( addr(src) + i )
+            dstx == byteinteger( addr(dst) + i )
+            dstx = srcx
+        %repeat
+    %end
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+    %external %routine impstrjcat ( %byte %name dst,src, %integer len )
+        %integer i
+        %integer count
+        %byte dlen,slen
+        %byte %name srcx,dstx
+
+        %if (len = 0) %then len = MAXLENIMPSTRING; ! string(*)name - comes from general %name's etc
+
+        dlen = dst;   ! pick up existing destination length
+        slen = src;   ! fetch the source length
+
+        %if ((dlen + slen) > len) %start { force the length to fit }
+            count = len - dlen
+        %else
+            count = slen
+        %finish
+        dlen = dlen + count
+
+        ! update the destination count
+        dstx == byteinteger( addr( dst) ); ! get the address
+        dstx = dlen;                       ! set the new length
+
+        ! copy across the source chars
+        %for i = 1,1,count %cycle
+            srcx == byteinteger( addr(src) + i )
+            dstx == byteinteger( addr(dst) + (dlen - count) + i )
+            dstx = srcx
+        %repeat
+    %end
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+    ! IMP resolution - S->A.(B).C; returns 1 for success, 0 for failure
+    %external %predicate impstrres ( %byte %name c,b,a,s )
+        %integer index, count, i
+        %byte slen, alen, blen, clen
+        %byte %name sx,ax,bx,cx
+
+        ! Although S,A,B,C are declared equivalent to C format string arrays
+        ! This lets us access a char at index i by x[i]
+        ! However the string arrays are formatted as IMP strings
+        ! Hence, x[0] contains the length of the string.
+        ! And x[x[0]] is therefore the last char in the IMP string.
+        ! NB. IMP equates a char to a single byte
+        ! So an IMP string is a byte addressable array of unsigned bytes.
+        ! So x[0] can only hold a value 0..255
+        ! NB. Hence IMP strings have at most 255 chars
+        !     With an extra prefix byte to indicate the actual string length
+        !     Thus an IMP string variable requires at most 256 bytes
+        !
+        ! NB. A programmer can assign a lesser size than 256 to a string
+        !     and needs to be aware of potential "buffer" overflow
+
+        ! For all cases S,B unchanged
+        ! case 1:   S -> A.(B).C
+        !  sub-case 1A: length(B) > length(S) => %false, A,C unchanged
+        !  sub-case 1B: B not in S            => %false, A,C unchanged
+        !  sub-case 1C: B in S                => %true,  A := S\(B.C)
+        !                                                C := S\(A.B)
+    
+        ! case 2:   S -> A.(B) - all sub-cases C unchanged
+        !  sub-case 2A: length(B) > length(S) => %false, A unchanged
+        !  sub-case 2B: B not in S            => %false, A unchanged
+        !  sub-case 2C: B in S                => %true,  A := S\B
+
+        ! case 3:   S ->   (B).C - all sub-cases A unchanged
+        !  sub-case 3A: length(B) > length(S) => %false, C unchanged
+        !  sub-case 3B: B not in S            => %false, C unchanged
+        !  sub-case 3C: B in S                => %true,  C := S\B
+
+        ! We know the sizes of S,B since we can use length(S), length(B)
+        ! Assume A,C have storage lengths able to hold at most a copy of S
+
+        ! Point to the start address of S,B respectively
+        sx == byteinteger( addr( s ) )
+        bx == byteinteger( addr( b ) )
+        { Now retrieve the lengths of the input strings S,B }
+        slen = s
+        blen = b
+
+        { Compare the lengths of the B,S strings }
+        { B must not be longer than S }
+        %if (blen > slen) %start
+            { Drat! B is longer so this resolution can't possibly work }
+            %false
+        %finish
+
+        ! Now to successively try to find B inside S
+        { Loop over S and then B to see if B is indeed a sub-string of S }
+        { We need to find the location of B in S }
+        { So start at the character in S }
+        index = 1
+        %while ( (index + blen) <= slen + 1) %cycle
+            { see if there is a match starting from S[index] }
+            { count gives the number of matched characters in B found in S }
+            { It indicates we are about to search thupto B[count] }
+            count = 0
+            %while (count <= blen) %cycle
+                { Get next char to compare in B }
+                { Remember to skip over the byte/char holding B's length }
+                { bx == B[count + 1] }
+                bx == byteinteger( addr(b) + 1 + count )
+
+                { Now get the offseted char from S }
+                { sx == S[index + count] }
+                sx == byteinteger( addr(s) + index + count )
+
+                { Compare the chars }
+                { no match implies B cannot start at S[index] }
+                %exit %if (sx # bx)
+
+                { Great, byte chars match }
+                { So up out count to look at the next char }
+                count = count + 1;
+            %repeat
+
+            { check if we found string B present in S }
+            %if (count = blen) %start
+
+                { Yes, B is inside S and B starts at S[INDEX] }
+
+                { So, we have the invariant over the various string lengths }
+                { length(S) = length(A) + length(B) + length(C) }
+
+                { Knowing the start and end location of the strings inside S }
+                { String    Start           End               }
+                {      S    1               slen              }
+                {      A    1               index - 1         }
+                {      B    index           index + blen - 1  }
+                {      C    index + blen    slen              }
+
+                { Using length = 1 + end - start    }
+                { String    Length                  }
+                {      S    slen                    }
+                {      A    index - 1               }
+                {      B    blen                    }
+                {      C    slen + 1 - index - blen }
+
+                { Checking the invariant gives }
+                {   length(A) + length(B) + length(C) }
+                { = index - 1 + blen      + slen + 1 - index - blen }
+                { = slen  (after simplifying terms) }
+
+                { Now to determine the lengths of A, C }
+                { Determine alen from its end position }
+                alen = index - 1
+
+                { Using the invariant }
+                clen = slen - (alen + blen)
+
+                { Now populate the A, C strings (if required as output) }
+                { Firstly populate the prefix string A in S-> A.(B).C }
+                %if (addr(a) # 0) %start
+                    { String A has been requested }
+
+                    { copy S into A }
+                    { starting at S[1] for alen characters }
+                    ax == byteinteger( addr(a) )
+                    ax = alen
+                    %for i = 1,1,alen %cycle
+                        sx == byteinteger( addr(s) + i )
+                        ax == byteinteger( addr(a) + i )
+                        ax = sx;
+                    %repeat
+                %finish
+
+                { Now to remember the postfix string C in S-> A.(B).C }
+                %if (addr(c) # 0) %start
+                    { String C has been requested }
+
+                    ! Ok, we have somewhere to store C
+                    cx == byteinteger( addr(c) )
+                    cx = clen
+                    %for i = 1,1,clen %cycle
+                        sx == byteinteger( addr(s) + i + alen + blen )
+                        cx == byteinteger( addr(c) + i )
+                        cx = sx
+                    %repeat
+                %finish
+
+                %true
+            %finish
+
+            ! here = no match found (as yet!)
+            index = index + 1
+        %repeat
+
+        ! We have seached all of S and not found B as a sub-string
+        ! So report failure, leaving A,C untouched
+        %false
+    %end
+{------------------------------------------------------------------------------}
+%endoffile

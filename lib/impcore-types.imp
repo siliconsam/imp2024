@@ -1,0 +1,53 @@
+{-----------------------------------------------------------------------------}
+    !
+    ! We ass-u-me that:
+    ! (1) the processor is byte addressable
+    ! (2) an address is 32-bits (=4 bytes)
+    !  
+    %constinteger address size = 4
+    ! simple data-types
+    %constinteger  integertype  = 1
+    %constinteger  realtype     = 2
+    %constinteger  stringtype   = 3
+    %constinteger  recordtype   = 4
+    %constinteger  bytetype     = 5
+    %constinteger  shorttype    = 6
+    %constinteger  longtype     = 7
+    %constinteger  longrealtype = 8
+    %constinteger  arraytype    = 9
+    %constinteger  labeltype    = 10
+    !--------------------------------------------------------------------------
+    !--------------------------------------------------------------------------
+    ! This function decodes the returned value of the typeof function to that
+    ! of a corresponding string value
+    !--------------------------------------------------------------------------
+    %external %string(255) %function typeName( %integer t )
+        %string(255) s
+        %switch sw(0:15)
+
+        s = ""
+
+        -> sw(t&15)
+        ! type value given in the document
+        !   "THE IMP LANGUAGE - A Reference Manual"
+        ! are the output values provided by typeof.
+        sw(0):  s = "unknown";                   -> esac
+        sw(1):  s = "integer";                   -> esac
+        sw(2):  s = "real";                      -> esac
+        sw(3):  s = "string";                    -> esac
+        sw(4):  s = "record";                    -> esac
+        sw(5):  s = "byte";                      -> esac
+        sw(6):  s = "shortinteger";              -> esac
+        sw(7):  s = "longinteger";               -> esac
+        sw(8):  s = "longreal";                  -> esac
+        sw(9):  s = "array";                     -> esac
+        sw(10): s = "label";                     -> esac
+
+        ! Belt and braces result which warns of an invalid data-type
+        sw(*):  s = "illegal(".itos(t&15,0).")"; -> esac
+    esac:
+        %result = s
+    %end
+    !--------------------------------------------------------------------------
+    !--------------------------------------------------------------------------
+%endoffile
