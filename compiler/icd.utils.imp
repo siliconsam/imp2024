@@ -1,0 +1,625 @@
+
+    %include "icd.types.inc"
+
+    ! next symbol
+    %owninteger Pending
+
+    %constant %integer max symbols = 1024
+    %own %integer maxtag = 0
+
+    ! This represents the initial defined attributes of a symbol
+    %recordformat  symbolfm( %string(255) name,
+                             %integer tf,size,scope )
+    %own %record(symbolfm)%array  symbol(0:max symbols)
+
+    ! Debug routine to see the maximum symbols defined
+    %external %integer %function getmaxtag
+        %result = maxtag
+    %end
+
+    %external %routine set symbol data( %integer tag, %string(255) name, %integer tf, size, scope)
+        symbol( tag )_name = name
+        symbol( tag )_tf = tf
+        symbol( tag )_size = size
+        symbol( tag )_scope = scope
+
+        %if (tag > maxtag) %then maxtag = tag
+    %end
+
+    %external %string(255) %fn get symbol name( %integer tag )
+        %string(255) s
+        s = symbol(tag)_name
+        %result = s
+    %end
+
+    %external %string(15) %fn get own String( %integer flags )
+        %string(15) s
+        %label esac
+        %switch sw(0:15)
+
+        -> sw(flags&7)
+        sw( 0): s = "auto";      -> esac
+        sw( 1): s = "own";       -> esac
+        sw( 2): s = "constant";  -> esac
+        sw( 3): s = "external";  -> esac
+        sw( 4): s = "system";    -> esac
+        sw( 5): s = "dynamic";   -> esac
+        sw( 6): s = "primitive"; -> esac
+        sw( 7): s = "permanent"; -> esac
+        esac:
+
+        %result = s
+    %end
+
+    %external %string(63) %fn get flags string( %integer flags )
+        %string(63) s
+
+        s = ""
+
+        %if (Flags&1 # 0) %start
+            %if (length(s) > 0) %then s = s . ","
+            s = s . "spec"
+        %finish
+        %if (Flags &2 # 0) %start
+            %if (length(s) > 0) %then s = s . ","
+            s = s . "indirect"
+        %finish
+        %if (Flags&4 # 0) %start
+            %if (length(s) > 0) %then s = s . ","
+            s = s . "check"
+        %finish
+        %if (Flags &8 # 0) %start
+            %if (length(s) > 0) %then s = s . ","
+            s = s . "b6flag"
+        %finish
+        %if (Flags&16 # 0) %start
+            %if (length(s) > 0) %then s = s . ","
+            s = s . "b7flag"
+        %finish
+
+        %result = s
+    %end
+
+    %external %string(255) %fn get type def( %integer type,size )
+        %string(255) s,so
+        %label esac
+        %switch sw(0:15)
+
+        so = itos(size,0)
+        s = ""
+        -> sw(type&15)
+        sw(0):
+            s = "void"
+            -> esac
+        sw(1):
+            %if (size = 1) %start
+                s = "integer"
+            %finish %else %if (size = 2) %start
+                s = "byte"
+            %finish %else %if (size = 3) %start
+                s = "short"
+            %finish %else %if (size = 4) %start
+                s = "long"
+            %finish %else %if (size = 5) %start
+                s = "quad"
+            %finish %else %start
+                s = "type=1 (integer) has an unknown size=" . so
+            %finish
+            -> esac
+        sw(2):
+            %if (size = 1) %start
+                s = "real"
+            %finish %else %if (size = 4) %start
+                s = "longreal"
+            %finish %else %start
+                s = "type=2 (float) has an unknown size=" . so
+            %finish
+            -> esac
+        sw(3):
+            %if (size = 0) %start
+                s = "string(*)"
+            %finish %else %start
+                s = "string(".so.")"
+            %finish
+            -> esac
+        sw(4):
+            %if (size = 0) %start
+                s = "record(*)"
+            %finish %else %start
+                s = "record(""".get symbol name(size).""")"
+            %finish
+            -> esac
+        sw(5):
+            s = "boolean"
+            -> esac
+        sw(6):
+            s = "set"
+            -> esac
+        sw(7):
+            s = "enum8(""".get symbol name(size).""")"
+            -> esac
+        sw(8):
+            s = "enum16(""".get symbol name(size).""")"
+            -> esac
+        sw(9):
+            s = "pointer"
+            -> esac
+        sw(10):
+            s = "char"
+            -> esac
+        sw(11):
+            %if (size = 1) %start
+                s = "unsigned"
+            %finish %else %if (size = 2) %start
+                s = "ubyte"
+            %finish %else %if (size = 3) %start
+                s = "ushort"
+            %finish %else %if (size = 4) %start
+                s = "ulong"
+            %finish %else %if (size = 5) %start
+                s = "uquad"
+            %finish %else %start
+                s = "unknown size for type 11=" . so
+            %finish
+            -> esac
+        sw(*):
+            s = "unknown type " . so
+            -> esac
+        esac:
+
+        %result = s
+    %end
+
+    ! Determine an array entry type
+    ! type, size are values from the "Define Var" iCode parameters
+    ! type represent the type of each array entry
+    ! size represents the size of the simple var (not the array size)
+    %external %integer %fn get entry type( %integer type, size )
+        %label esac
+        %switch sw(0:15)
+        %integer t
+
+        ! Assuming this is referring to an array
+        ! We can then decode the array entry type
+
+        ! set default type as "unknown"
+        t = 0
+
+        ! decode the active entry type
+        ! As more data-types are added (ie %longlonginteger, %char)
+        ! provide more "type" values and decode appropriately
+        -> sw(type&15)
+        sw(1):
+            %if (size = 1) %start
+                ! "integer"
+                t = 1
+            %finish %else %if (size = 2) %start
+                ! "byte"
+                t = 5
+            %finish %else %if (size = 3) %start
+               ! "short"
+               t = 6
+!                ! "short" are regarded as "integer"
+!                ! "integer"
+!                t = 1
+            %finish %else %if (size = 4) %start
+!                ! "long"
+!                t = 7
+                ! "long" are regarded as "integer"
+                ! "integer"
+                t = 1
+            %finish
+            -> esac
+        sw(2):
+            %if (size = 1) %start
+                ! "real"
+                t = 2
+            %finish %else %if (size = 4) %start
+                ! "longreal"
+                t = 8
+            %finish
+            -> esac
+        sw(3):
+            ! "string"
+            t = 3
+            -> esac
+        sw(4):
+            ! "record"
+            t = 4
+            -> esac
+        sw(*):
+            ! "unknown"
+            t = 0
+            -> esac
+        esac:
+
+        %result = t
+    %end
+
+    %external %string(15) %fn get typeof String( %integer type )
+        %string(15) s
+        %label esac
+        %switch sw(0:15)
+
+        -> sw(type&15)
+        sw( 0): s = "void";          -> esac
+        sw( 1): s = "integer";       -> esac
+        sw( 2): s = "real";          -> esac
+        sw( 3): s = "string";        -> esac
+        sw( 4): s = "record";        -> esac
+        sw( 5): s = "byteinteger";   -> esac
+        sw( 6): s = "shortinteger";  -> esac
+        sw( 7): s = "longinteger";   -> esac
+        sw( 8): s = "longreal";      -> esac
+        sw( 9): s = "array";         -> esac
+        sw(10): s = "label";         -> esac
+
+        sw(12): s = "arrayname";     -> esac
+
+        sw(*):  s = "**type ??**";   -> esac
+        esac:
+
+        %result = s
+    %end
+
+    %external %string(15) %function get type name( %integer type)
+        %string(15) name
+        %label esac
+        %switch n(0:15)
+            
+        -> n(type&15)
+        n( 0):  name = "general";       -> esac
+        n( 1):  name = "integer";       -> esac
+        n( 2):  name = "real";          -> esac
+        n( 3):  name = "string";        -> esac
+        n( 4):  name = "record";        -> esac
+        n( 5):  name = "byte";          -> esac
+        n( 6):  name = "short";         -> esac
+        n( 7):  name = "long";          -> esac
+        n( 8):  name = "lreal";         -> esac
+        n( 9):  name = "array";         -> esac
+        n(10):  name = "label";         -> esac
+        n(11):  name = "?array";        -> esac
+        n(12):  name = "arrayname";     -> esac
+        n(13):  name = "namearray";     -> esac
+        n(14):  name = "namearrayname"; -> esac
+
+        n(*):   name = "????";    -> esac
+        esac:
+
+        %result = name
+    %end
+
+    %external %string(15) %function get external form name( %integer form )
+        %string(15) name
+        %label esac
+        %switch n(0:15)
+            
+        -> n(form&15)
+        n( 0):  name = "void";           -> esac
+        n( 1):  name = "simple";         -> esac
+        n( 2):  name = "name";           -> esac
+        n( 3):  name = "label";          -> esac
+        n( 4):  name = "recordformat";   -> esac
+
+        n( 6):  name = "switch";         -> esac
+        n( 7):  name = "routine";        -> esac
+        n( 8):  name = "function";       -> esac
+        n( 9):  name = "map";            -> esac
+        n(10):  name = "predicate";      -> esac
+        n(11):  name = "array";          -> esac
+        n(12):  name = "arrayname";      -> esac
+        n(13):  name = "namearray";      -> esac
+        n(14):  name = "namearrayname";  -> esac
+
+        n(*):   name = "????";           -> esac
+        esac:
+
+        %result = name;
+    %end
+
+    %external %string(15) %function get internal form name( %integer form )
+        %string(15) name
+        %label esac
+        %switch n(0:15)
+
+        -> n(form&15)
+        n( 0):  name = "Constant";    -> esac
+        n( 1):  name = "V in R";      -> esac
+        n( 2):  name = "A V in R";    -> esac
+        n( 3):  name = "A in R";      -> esac
+        n( 4):  name = "V in S";      -> esac
+        n( 5):  name = "A V in S";    -> esac
+        n( 6):  name = "A in S";      -> esac
+        n( 7):  name = "V in REC";    -> esac
+        n( 8):  name = "A V in REC";  -> esac
+        n( 9):  name = "A in REC";    -> esac
+        n(10):  name = "PgmLabel";    -> esac
+
+        n(*):   name = "????";        -> esac
+        esac:
+
+        %result = name;
+    %end
+
+    ! The individual switch entries MUST match those in the assemble routine
+    ! If the iCode language is extended/re-ordered then this routine
+    ! must be updated.
+    %external %string(15) %function getICodeName( %integer code )
+        %string(15) s
+        %label esac
+        %switch c(0:255)
+
+        -> c(code&255)
+        c(iCodeEOF):        s = "ENDOFFILE"; -> esac
+        c(iCodeOR):         s = "OR";        -> esac
+        c(iCodeCOMPARED):   s = "COMPARED";  -> esac
+        c(iCodeJNE):        s = "JNE";       -> esac
+        c(iCodeDEF):        s = "DEF";       -> esac
+        c(iCodeXOR):        s = "XOR";       -> esac
+        c(iCodeAND):        s = "AND";       -> esac
+        c(iCodePUSHS):      s = "PUSHS";     -> esac
+        c(iCodeJLE):        s = "JLE";       -> esac
+        c(iCodeJGE):        s = "JGE";       -> esac
+        c(iCodeMUL):        s = "MUL";       -> esac
+        c(iCodeADD):        s = "ADD";       -> esac
+        c(iCodeSUB):        s = "SUB";       -> esac
+        c(iCodeCONCAT):     s = "CONCAT";    -> esac
+        c(iCodeQUOT):       s = "QUOT";      -> esac
+        c(iCodeLOCATE):     s = "LOCATE";    -> esac
+        c(iCodeEND):        s = "END";       -> esac
+        c(iCodeJL):         s = "JL";        -> esac
+        c(iCodeJE):         s = "JE";        -> esac
+        c(iCodeJG):         s = "JG";        -> esac
+        c(iCodeCOMPARE):    s = "COMPARE";   -> esac
+        c(iCodePUSH):       s = "PUSH";      -> esac
+        c(iCodeINIT):       s = "INIT";      -> esac
+        c(iCodeREPEAT):     s = "REPEAT";    -> esac
+        c(iCodeCOMPAREA):   s = "COMPAREA";  -> esac
+        c(iCodePUSHR):      s = "PUSHR";     -> esac
+        c(iCodeCALL):       s = "CALL";      -> esac
+        c(iCodeGOTO):       s = "GOTO";      -> esac
+        c(iCodeALIAS):      s = "ALIAS";     -> esac
+        c(iCodeBEGIN):      s = "BEGIN";     -> esac
+
+        c(iCodeJUMP):       s = "JUMP";      -> esac
+        c(iCodeFALSE):      s = "FALSE";     -> esac
+        c(iCodeLABEL):      s = "LABEL";     -> esac
+        c(iCodeMAP):        s = "MAP";       -> esac
+        c(iCodePUSHI):      s = "PUSHI";     -> esac
+        c(iCodeLINE):       s = "LINE";      -> esac
+        c(iCodePLANT):      s = "PLANT";     -> esac
+        c(iCodeDIVIDE):     s = "DIVIDE";    -> esac
+        c(iCodeRETURN):     s = "RETURN";    -> esac
+        c(iCodeASSVAL):     s = "ASSVAL";    -> esac
+        c(iCodeTRUE):       s = "TRUE";      -> esac
+        c(iCodeNEGATE):     s = "NEGATE";    -> esac
+        c(iCodeRESULT):     s = "RESULT";    -> esac
+        c(iCodeSJUMP):      s = "SJUMP";     -> esac
+        c(iCodeIEXP):       s = "IEXP";      -> esac
+
+        c(iCodeASSREF):     s = "ASSREF";    -> esac
+        c(iCodeLSH):        s = "LSH";       -> esac
+        c(iCodeNOT):        s = "NOT";       -> esac
+        c(iCodeRSH):        s = "RSH";       -> esac
+        c(iCodeSETFORMAT):  s = "SETFORMAT"; -> esac
+        c(iCodeSLABEL):     s = "SLABEL";    -> esac
+        c(iCodeACCESS):     s = "ACCESS";    -> esac
+        c(iCodeBOUNDS):     s = "BOUNDS";    -> esac
+        c(iCodeALTNEXT):    s = "ALTNEXT";   -> esac
+        c(iCodeDIM):        s = "DIM";       -> esac
+        c(iCodeEVENT):      s = "EVENT";     -> esac
+        c(iCodeFOR):        s = "FOR";       -> esac
+        c(iCodeALTSTART):   s = "ALTSTART";  -> esac
+        c(iCodeALTEND):     s = "ALTEND";    -> esac
+        c(iCodeINDEX):      s = "INDEX";     -> esac
+        c(iCodeJAM):        s = "JAM";       -> esac
+        c(iCodeJZ):         s = "JZ";        -> esac
+        c(iCodeLANG):       s = "LANG";      -> esac
+        c(iCodeMONITOR):    s = "MONITOR";   -> esac
+        c(iCodeSELECT):     s = "SELECT";    -> esac
+        c(iCodeON):         s = "ON";        -> esac
+        c(iCodeASSPAR):     s = "ASSPAR";    -> esac
+        c(iCodeSUBA):       s = "SUBA";      -> esac
+        c(iCodeRESOLVE):    s = "RESOLVE";   -> esac
+        c(iCodeSTOP):       s = "STOP";      -> esac
+        c(iCodeJNZ):        s = "JNZ";       -> esac
+        c(iCodeADDA):       s = "ADDA";      -> esac
+        c(iCodeMOD):        s = "MOD";       -> esac
+        c(iCodeMCODE):      s = "MCODE";     -> esac
+        c(iCodeREXP):       s = "REXP";      -> esac
+        c(iCodeDIAG):       s = "DIAG";      -> esac
+        c(iCodeCONTROL):    s = "CONTROL";   -> esac
+        c(iCodeSTART):      s = "START";     -> esac
+
+        c(iCodeFINISH):     s = "FINISH";    -> esac
+        c(iCodeALT):        s = "ALT";       -> esac
+        c(*):               s = "ILLEGAL";   -> esac
+        esac:
+
+        %result = s
+    %end
+
+    ! The following functions "parse" an iCode instructions' parameters
+    ! These functions are the only places where the iCode stream is read
+    !                                                      >> TAG <<
+    !                                                      >> TAG+COMMA <<
+    !                                                      >> INTEGER <<
+    !                                                      >> BYTE <<
+    !                                                      >> REAL <<
+    %external %integer %function  ReadTag
+        %integer s1, s2
+        s1 = Pending
+        readsymbol(s2)
+        readsymbol(Pending)
+        %result = s1<<8!s2
+    %end
+
+    %external %integer %function  ReadTagComma
+        %integer t
+        t = ReadTag
+        readsymbol(Pending)
+        %result = t
+    %end
+
+    %external %integer %function  ReadInteger
+        %integer s1, s2, s3, s4
+        s1 = Pending
+        readsymbol(s2)
+        readsymbol(s3)
+        readsymbol(s4)
+        readsymbol(Pending)
+        %result = (s1<<24)!(s2<<16)!(s3<<8)!s4
+    %end
+
+    %external %integer %function ReadByte
+        %integer s1
+        s1 = Pending
+        readsymbol(Pending)
+        %result = s1
+    %end
+
+    !                                                      >> READ REAL <<
+    ! Read a floating point literal.  Pass 1 treats these as strings
+    ! and leaves it up to us to make a floating point number out of it
+    ! We therefore expect [COUNT]NNN.NNN@NN
+    %external %longreal %function  ReadReal
+        %integer n,sym
+        %longreal p, r
+        n = ReadTagComma;	! char count, skip comma
+
+        r = 0
+        ! Start with the bit ahead of the decimal point
+        %cycle
+            sym = Pending
+            read symbol(Pending)
+            %exit %if (sym = '.')
+            n = n-1
+            -> power %if (sym = '@')
+            r = r*10+(sym-'0')
+            -> SIGN %if (n = 0)
+        %repeat
+        p = 1
+        %cycle
+            n = n-1
+            -> SIGN %if (n = 0)
+            sym = Pending
+            read symbol(Pending)
+            -> POWER %if (sym = '@')
+            p = p/10
+            r = r + (sym-'0')*p
+        %repeat
+
+POWER:
+        n = ReadTag
+        ! Pass1 writes a Tag as an unsigned 16-bit integer (0..65535)
+        ! but is read into a 32-bit signed integer
+        ! and so 0 < n < 65535
+        ! BUT:
+        ! in this case a tag is to be regarded as a 16-bit signed integer
+        ! So 0 < n < 32768 is to be regarded as a positive integer
+        ! and 32767 < n < 65536 is a negative integer
+        ! n     => correct n
+        ! 65536 =>  0
+        ! 65535 => -1      (65536 - n)
+        ! 65534 => -2      (65536 - n)
+        ! ..
+        ! 32768 => -32768  (65536 - n)
+
+        ! Now to tweak the floating point value. This method is
+        ! somewhat clunky so that we can be portable to a system that
+        ! doesn't do exponents
+
+        ! This version of the pass2 code generator targets the 8087
+        ! and later versions as the numeric processor for floating
+        ! point arithmetic
+        ! e.g. double real (== %longreal)
+        ! Double real uses an 11-bit exponent so we should ensure
+        ! that the tag represents an exponent in the range
+        !             -1023 <= exp <= 1023
+        ! -1024 is omitted to ensure no overflow for reciprocals
+        ! The exponent however, has a bias of 1023 so the actual
+        ! 8087 exponent is in the range 0 <= exp <= 2046
+
+        ! Currently don't bother to check that the exponent is in
+        ! the range -1023 < exp < 1023
+        %if (n # 0) %start
+            ! ok, non-zero exponent
+            %if (0 < n < 32768) %start
+                ! positive exponent
+                %while (n > 0) %cycle
+                    r = r * 10
+                    n = n - 1
+                %repeat
+            %else
+                ! a negative exponent
+                ! So, convert to negative value
+                n = n - 65536
+
+                ! Now, attempt to update the float value
+                %while (n < 0) %cycle
+                    r = r / 10
+                    n = n + 1
+                %repeat
+            %finish
+        %finish
+SIGN:
+        ! sign of whole value
+        %if (Pending = 'U') %start
+            read symbol(Pending)
+            r = -r
+        %finish
+
+        %result = r
+    %end
+
+    %external %string(255) %function ReadString
+        ! JDM JDM changed Limit to be a %constinteger
+        %constinteger limit = 255
+        %integer J, Sym
+        %string(255) s
+
+        s = ""
+        %for J = Pending, -1,1 %cycle
+            Readsymbol(Sym)
+            s = s.Tostring(Sym) %if (Length(s) < Limit)
+        %repeat
+        Readsymbol(Pending)
+
+        %result = s
+    %end
+
+    %external %string(255) %function Get Ascii( %integer terminator)
+        %string(255) a
+        %integer Sym
+        a = ""
+        %cycle
+            sym = Pending
+            read symbol(Pending)
+            %exit %if (sym = terminator)
+            %if (length( a ) # 255) %start
+                a = a.to string(sym)
+            %finish
+        %repeat
+        %result = a
+    %end
+    ! End of parsing routines
+
+    %external %integer %function read iCode
+        %integer sym
+
+        sym = Pending
+        read symbol(Pending)
+
+        %result = sym
+    %end
+
+    %external %integer %function lookahead icode
+        %result = pending
+    %end
+
+    %external %routine next iCode
+        read symbol(Pending)
+    %end
+
+%endoffile

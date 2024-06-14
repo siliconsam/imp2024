@@ -1,0 +1,113 @@
+
+    %include "ibj.types.inc"
+
+    %owninteger objoutstream
+
+    ! Simple buffered output of code bytes...
+	%const %integer objbufmax = 512
+    %own %byte %integer %array objectbytes(1:objbufmax)
+
+    %own %integer objectlen = 0
+
+    %external %routine setibjoutstream( %integer stream )
+        objoutstream = stream
+    %end
+
+    %routine writenibble(%integer n)
+        n = n&16_f
+        %if (0 <= n <= 9) %start
+            printsymbol(n + '0')
+        %else
+            printsymbol(n + ('A' - 10))
+        %finish
+    %end
+
+    %external %routine writehex(%integer n, places)
+        %integer p, shift
+
+        shift = (places - 1) * 4
+        %while (shift > 0) %cycle
+            p = n >> shift
+            writenibble(p)
+            shift = shift - 4
+        %repeat
+        writenibble(n)
+    %end
+
+    ! Routine to write an intermediate file record
+    ! Record format is: <type><length><data>
+    ! For debug purposes, the elements are all written as ascii characters
+    ! <type> is a single letter,
+    ! <length> is a single hex digit, length refers to byte count (2 chars) of data.
+    ! <data> output each ibj data byte as 2 hex digits
+    %external %routine writeifrecord( %integer type )
+        %integer i
+
+        %if (type # 0) %or (objectlen > 0) %start
+            select output(objoutstream)
+
+            ! Indicate the ibj datatype
+            printsymbol('A'+type)
+
+            ! optionally check the amount of ibj data
+            ! (need to declare the abort routine as external)
+            ! However abort is embedded in the pass2 code!!!
+!            %if (objectlen > 255) %then abort("Intermediate file record too long")
+
+            ! indicate the length of actual ibj data
+            writenibble(objectlen>>4)
+            writenibble(objectlen&15)
+
+            ! write the ibj data
+            %for i = 1,1,objectlen %cycle
+                writenibble( objectbytes(i) >> 4 )
+                writenibble( objectbytes(i)&15 )
+            %repeat
+            newline
+        %finish
+
+        ! Now clean up the object buffer
+		%for i = 1,1,objbufmax %cycle
+			objectbytes(i) = 0
+		%repeat
+		objectlen = 0
+    %end
+
+    ! Routines to put byte,tag,word,long,string data into the code buffer
+
+    ! puts a normal code byte into the code pipe
+    %external %routine putcodebyte(%integer b)
+        objectlen = objectlen + 1
+        objectbytes(objectlen) = b
+    %end
+
+    ! puts a symbol tag (2-bytes) into the code pipe
+    %external %routine putcodetag(%integer t)
+        putcodebyte( (t >>  0)&255 )
+        putcodebyte( (t >>  8)&255 )
+    %end
+
+    ! puts a 16-bit integer (2-bytes) into the code pipe
+    %external %routine putcodeword(%integer t)
+        putcodebyte( (t >>  0)&255 )
+        putcodebyte( (t >>  8)&255 )
+    %end
+
+    ! puts a 32-bit integer (4-bytes) into the code pipe
+    %external %routine putcodelong(%integer t)
+        putcodebyte( (t >>  0)&255 )
+        putcodebyte( (t >>  8)&255 )
+        putcodebyte( (t >> 16)&255 )
+        putcodebyte( (t >> 24)&255 )
+    %end
+
+    ! utility to copy an IMP string into the IBJ buffer
+    %external %routine putcodestring(%string(255)%name s)
+        %integer i
+
+        %for i = 1,1,length(s) %cycle
+            putcodebyte(charno(s, i))
+        %repeat
+    %end
+
+%endoffile
