@@ -36,15 +36,13 @@
  19 COMMA"     %
 
 [normal classes=20]
- 15 LSB"       [
- 16 RSB"       ]
 
  20 T"         ;
  21 COLON"     :
  22 COMMENT"   COMMENT
- 23 LB"        (
+ 23 LB"        (, [
  24 ALIAS"     ALIAS
- 25 RB"        )
+ 25 RB"        ), ]
  26 SUB"       _
 
  27 ARRAYD     ARRAY$40(2)
@@ -119,7 +117,7 @@
  86 INCLUDE    INCLUDE
  87 MASS       *=
  88 RTYPE      INTEGER$40(16+1)
-
+ 89 ADDOP      ++(117), --(113)
 
 [built-in=90]
  90 IDENT       [identifier]
@@ -327,10 +325,10 @@ SS      -> %DECL (VDEC< IDENT INITDEC (COMMA IDENT INITDEC)* T,
                 UNTIL< COND T,
                 FOR SEQ<[4] T)
 
-INITDEC -> %CDUMMY (V   ((EQ,JAM) %SETTYPE EXP<[1]),
-                    N   EQEQ %SETTYPE (V< %TYPE %PROT, N< %TYPE %PROT (LSB< EXP<[4] RSB)?),
-                    AN  EQEQ %SETTYPE (A<, AN<) %TYPE %PROT,
-                    NAN EQEQ %SETTYPE (NA<, NAN<) %TYPE %PROT)
+INITDEC -> %CDUMMY (V   (EQ %SETTYPE  EXP<[1], JAM %SETTYPE SIGN" EXP<[1]),
+                    N   EQEQ %SETTYPE (V< %TYPE, N< %TYPE) %PROT (ADDOP< SEXP<<[4])?,
+                    AN  EQEQ %SETTYPE (A< %TYPE, AN< %TYPE) %PROT,
+                    NAN EQEQ %SETTYPE (NA< %TYPE, NAN< %TYPE) %PROT)
 
 IDENTS  -> IDENT (COMMA IDENT)*
 
@@ -338,10 +336,15 @@ SWIDS   -> SWID (COMMA SWID)*
 
 SWDEF   -> SWIDS CONSTB< %COMPILE
 
-IMP     -> V %PROT ((EQ,JAM) %SETTYPE EXP<[1],
+IMP     -> V %PROT (EQ %SETTYPE        EXP<[1],
+                    JAM %SETTYPE SIGN" EXP<[1],
                     RESOP %OTHER[1] RESEXP<[3]) (AND" IMP)?,
            R (AND" IMP)?,
-           N ((EQEQ %SETTYPE (V<,N<) %TYPE (AND" IMP)?),(%PROT (((EQ,JAM) %SETTYPE EXP<[1] (AND" IMP)?),(RESOP %OTHER[1] RESEXP<[3] (AND" IMP)?),(EQEQ %SETTYPE (V<,N<) %TYPE %PROT (AND" IMP)?)))),
+           N (%PROT ((ADDOP< SEXP<<[4])? (EQ %SETTYPE        EXP<[1],
+                     JAM %SETTYPE SIGN" EXP<[1],
+                     RESOP %OTHER[1]     RESEXP<[3]),
+                     EQEQ %SETTYPE  (V< %TYPE, N< %TYPE) %PROT (ADDOP< SEXP<<[4])?),
+              EQEQ %SETTYPE (V<, N<) %TYPE %PROT (ADDOP< SEXP<<[4])?) (AND" IMP)?,
            BACK %BLOCK,
            FRESULT %BLOCK EXP<[1],
            EXIT,
@@ -401,7 +404,7 @@ ISEXP   -> PCONST %TYPE,
            LB IEXP RB,
            MOD" IEXP CMOD
 
-SEQ     -> (V, N) %TYPE %PROT %OTHER[4] EQ" EXP COMMA EXP< CSEP EXP<<
+SEQ     -> (V %TYPE, N %TYPE) %PROT %OTHER[4] EQ" EXP COMMA EXP< CSEP EXP<<
 
 RCONST  -> SIGN? CONST< %TYPE
 
@@ -449,7 +452,8 @@ APP6    -> EXP[4] ASEP EXP[4] ASEP EXP[4] ASEP EXP[4] ASEP EXP[4] ASEP EXP[4]
 CLIST   -> IEXP (COMMA IEXP)*
 
 INITVAR -> CIDENT %SETTYPE (ALIAS ACONST< %OTHER[1])? (EQ" %DUMMY V" IEXP<[5],
-                                                       EQEQ" %DUMMY (N",AN",NAN") (%OTHER[3] (V<,N<) %PROT %TYPE, IEXP<[4]),
+                  EQEQ" %DUMMY (N", AN", NAN") %OTHER[3] (V<, N<) %PROT %TYPE (ADDOP< IEXP<<[4])?,
+                  EQEQ" %DUMMY (N", AN", NAN") IEXP<[4],
                                                        %DUBIOUS) %COMPILE
 
 CIEXP   -> IEXP %COMPILE
@@ -458,7 +462,7 @@ RESEXP  -> ((V, N) %PROT DOTL)? LB EXP RB (DOTR (V, N) %PROT)?
 
 NPARM   -> (V, N, A, AN, NA, NAN) %PROT, NLAB
 
-VARP    -> (V, N) %PTYPE %PROT
+VARP    -> (V %PTYPE, N %PTYPE) %PROT (ADDOP< SEXP<<[4])?
 
 ARRAYP  -> A %PTYPE, AN %PTYPE
 
