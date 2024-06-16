@@ -2,8 +2,8 @@
 # Simple IMP compiler shell wrapper
 
 # Compiler source and binary folders 
-SOURCEDIR=~/linux/imp2022
-RELEASEDIR=/usr/local
+TESTDIR=${IMP_SOURCE_HOME}
+RELEASEDIR=${IMP_INSTALL_HOME}
 
 PROGNAME=`basename $0`
 SHOW_LIST=false
@@ -51,22 +51,41 @@ if [ $# -ne 1 ]; then
 	exit 1
 fi
 
-# try to be ambivalent about which extension is used
-SRCNAME=`basename $1 .imp`
-SRCNAME=`basename $SRCNAME .i`
-# and now check that there was one (and it's been removed)
-if [ X"$SRCNAME" = X"$1" ]; then
-	echo "${PROGNAME}: Source must be .imp or .i" 1>&2
-	exit 1
+# Determine a possible filename to compile
+if [ -e $1.imp ]; then
+	FILENAME=$1.imp
+    SRCNAME=$1
 fi
 
+if [ -e $1.i ]; then
+    FILENAME=$1.i
+    SRCNAME=$1
+fi
+
+if [ -e $1 ]; then
+    FILENAME=$1
+
+    # try to be ambivalent about which extension is used
+    SRCNAME=`basename $FILENAME .imp`
+    SRCNAME=`basename $SRCNAME .i`
+
+    # and now check that there was one (and it's been removed)
+    if [ X"$SRCNAME.imp" != X"$1" ] && [ X"$SRCNAME.i" != X"$1" ]; then
+        echo "${PROGNAME}: The source parameter has an invalid file extension" 1>&2
+        echo "${PROGNAME}: Legal file extensions are one of (.imp, .i)" 1>&2
+	    exit 1
+    fi
+
+fi
+
+
 if ${TEST_MODE}; then
-  INC_DIR=${SOURCEDIR}/include
-  P1_PROG=${SOURCEDIR}/compiler/pass1
-  P2_PROG=${SOURCEDIR}/compiler/pass2
-  P3_PROG=${SOURCEDIR}/pass3/pass3elf
-  LD_SCRIPT=${SOURCEDIR}/pass3/ld.i77.script
-  LIB_DIR=${SOURCEDIR}/lib
+  INC_DIR=${TESTDIR}/include
+  P1_PROG=${TESTDIR}/compiler/pass1
+  P2_PROG=${TESTDIR}/compiler/pass2
+  P3_PROG=${TESTDIR}/pass3/pass3elf
+  LD_SCRIPT=${TESTDIR}/pass3/ld.i77.script
+  LIB_DIR=${TESTDIR}/lib
 else
   INC_DIR=${RELEASEDIR}/include
   P1_PROG=${RELEASEDIR}/bin/pass1
@@ -102,13 +121,13 @@ else
     CODEFILE=/dev/null
 fi
 
-${P1_PROG} $1,${INC_DIR}/stdperm.imp=${SRCNAME}.icd,${LISTFILE}
+${P1_PROG} ${FILENAME},${INC_DIR}/stdperm.imp=${SRCNAME}.icd,${LISTFILE}
 if [ $? -ne 0 ] ; then
     echo "imp77: Compilation failure in pass1 for $1"
 	exit 1
 fi
 
-${P2_PROG} ${SRCNAME}.icd,$1=${SRCNAME}.ibj,${CODEFILE}
+${P2_PROG} ${SRCNAME}.icd,${FILENAME}=${SRCNAME}.ibj,${CODEFILE}
 if [ $? -ne 0 ] ; then
     echo "imp77: Compilation failure in pass2 for $1"
 	exit 1

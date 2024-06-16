@@ -3,8 +3,7 @@
 CC = gcc -no-pie ${M32}
 CCFLAGS = -O
 
-BASEDIR = /usr/local
-
+BASEDIR = ${IMP_INSTALL_HOME}
 BINDIR = ${BASEDIR}/bin
 LIBDIR = ${BASEDIR}/lib
 INCDIR = ${BASEDIR}/include

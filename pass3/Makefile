@@ -3,8 +3,7 @@
 CC = gcc ${M32}
 CCFLAGS = -O
 
-BASEDIR = /usr/local
-
+BASEDIR = ${IMP_INSTALL_HOME}
 BINDIR = ${BASEDIR}/bin
 
 SRC=pass3coff.c \

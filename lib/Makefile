@@ -3,8 +3,7 @@ CC = gcc ${M32}
 CCFLAGS = -O
 
 # LOOK! Change these three if they don't match your local policies
-BASEDIR = /usr/local
-
+BASEDIR = ${IMP_INSTALL_HOME}
 BINDIR = ${BASEDIR}/bin
 LIBDIR = ${BASEDIR}/lib
 INCDIR = ${BASEDIR}/include
@@ -59,7 +58,7 @@ libimp77.a: $(OBJS)
 > ranlib libimp77.a
 
 libimp77.so: $(OBJS)
-> gcc -m32 -shared -fPIC -Wl,-soname,libimp77.so -o libimp77.so $(OBJS)
+> ${CC} -shared -fPIC -Wl,-soname,libimp77.so -o libimp77.so $(OBJS)
 
 bootstrap: libimp77.so libimp77.a stdperm.imp
 # First, install the libraries and core include file
