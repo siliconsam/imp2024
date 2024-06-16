@@ -7,7 +7,7 @@ IMPLIB=${LIBDIR}/libimp77.a
 #IMPLIB=-limp77
 LDSCRIPT=${BINDIR}/ld.i77.script
 
-line="gcc -m32 -no-pie -o $1"
+line="gcc ${M32} -no-pie -o $1"
 
 for var in "$@"
 do
