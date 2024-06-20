@@ -1987,7 +1987,6 @@ static void putinternalspecs(FILE *output)
 static void putexternalspecs(FILE *output)
 {
     int i, type, ptr, index;
-    Elf32_Sym sym;
 
     // pass 2 spec's use 1-based IDs
     index = 1;
@@ -2445,7 +2444,6 @@ static void putcode(FILE *input, FILE *output)
 static void puttraptable(FILE *output)
 {
     int i, j, addr;
-    Elf32_Sym sym;
     struct stfix *sp;
     char *namep;
     int address[4],offset[4];
