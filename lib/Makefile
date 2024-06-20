@@ -106,3 +106,28 @@ initlinux: #
 > cp ./linux/*.ibj ./*
 > cp ./linux/*.imp ./*
 > cp ./linux/*.inc ./*
+
+initwindows: #
+> cp ./windows/*.ibj ./*
+> cp ./windows/*.imp ./*
+> cp ./windows/*.inc ./*
+
+updatelinux: #
+> cp ./implib-heap.ibj ./linux/*
+> cp ./implib-heap.inc ./linux/*
+> cp ./implib-trig.ibj ./linux/*
+> cp ./implib-trig.inc ./linux/*
+> cp ./imprtl-file.ibj ./linux/*
+> cp ./imprtl-file.inc ./linux/*
+> cp ./imprtl-main.ibj ./linux/*
+> cp ./imprtl-main.imp ./linux/*
+
+updatewindows: #
+> cp ./implib-heap.ibj ./windows/*
+> cp ./implib-trig.ibj ./windows/*
+> cp ./imprtl-file.ibj ./windows/*
+> cp ./imprtl-main.ibj ./windows/*
+> cp ./imprtl-main.imp ./windows/*
+> cp ./implib-heap.inc ./windows/*
+> cp ./implib-trig.inc ./windows/*
+> cp ./imprtl-file.inc ./windows/*

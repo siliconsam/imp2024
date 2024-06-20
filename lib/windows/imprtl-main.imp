@@ -1,0 +1,289 @@
+
+    ! Trick to remember the pointer to the command line parameters
+    %own %integer %name arguments
+
+    ! Trick to remember the pointer to the environment variables
+    %own %integer %name environs
+
+    %constinteger INPUT   = 1
+    %constinteger OUTPUT  = 2
+    %constinteger TEXT    = 4
+    %constinteger BINARY  = 8
+    
+    ! There are 2 forms of IMP program
+    ! Type 1: %begin                                    ... %end
+    ! Type 2: %external %routine XXX %alias "__impmain" ... %end
+    !
+    ! Both types of IMP "program" are compiled as an external routine,
+    ! with an external entry symbol of "__impmain"
+    ! and NO parameters
+    !
+    %external %routine %spec impmain %alias "__impmain"
+
+    %external %integer %function %spec get max input stream
+    %external %integer %function %spec get max output stream
+    %external %routine %spec initialise io system
+    %external %routine %spec terminate io system
+
+    %routine %spec parse file list ( %string(255) file list, %integer io mode )
+    %routine %spec usage
+
+    ! IMP main has the parameters in reverse order to the C main
+    ! define main so that the environment variables can be accessed
+    ! The external symbol name "_main" (or "main" for Unix/Linux) is used
+    ! to ensure IMP programs can be used in Windows/Unix/Linux environments
+    ! that provide a c interface
+    !--------------------------------------------------------------------------
+    %external %routine StartImp %c
+                       %alias "_main" %c
+                       ( %integer %name envp,
+                         %integer %name argv,
+                         %integer argc )
+
+        %string(255) s, b, inputs, outputs
+        %integer errcount = 0
+
+!JDM restricted last chance handler so that
+!JDM other signals will generate a stack dump
+!        %on %event * %start
+        %on %event 9,10 %start
+            %integer eventno, sub, info, line
+            %string(255) msg
+
+            eventno = event_event
+            sub = event_sub
+            info = event_info
+            line = event_line
+            msg = event_message
+
+            debugnewline
+            debugstring( "**** Arrgh!" )
+            debugstring( " Last chance event handler triggered from line=" )
+            debugstring( itos(line,0) )
+            debugnewline
+            debugstring( "**** Triggered by error (event,sub,extra)=" )
+            debugstring( "(" )
+            debugstring( itos(eventno,0).",".itos(sub,0).",".itos(info,0) )
+            debugstring( ")" )
+            debugnewline
+            debugstring( "     Error message is '".msg."'" )
+            debugnewline
+
+            %if eventno=6 %and sub = 2 %and info = 1 %start
+                debugstring("**** Likely cause of error: ")
+                debugstring("Missing command line parameter(s) ")
+                debugstring("for input/output file(s)")
+                debug newline
+            %finish
+
+            %if eventno = 9 %start
+                %if (sub = 4) %or (sub = 5) %start
+                    debugstring("**** Likely cause of error: ")
+                    debugstring("Missing/invalid command line parameter for ")
+                %finish
+                %if (sub = 4) %start
+                    debugstring("input ")
+                    debug newline
+                %finish
+                %if (sub = 5) %start
+                    debugstring("output ")
+                    debug newline
+                %finish
+                %if (sub = 4) %or (sub = 5) %start
+                    debugstring("file(s)")
+                %finish
+
+            %finish
+
+            %if eventno = 10 %start
+                debugstring("**** Likely cause of error: ")
+                debugstring("Missing/invalid command line parameter(s)")
+                debug newline
+            %finish
+
+            debugnewline
+
+            ! don't forget to close down the I/O system
+            terminate io system
+
+            ! and good bye!!!!
+            %stop
+
+        %finish
+
+        arguments == argv
+        environs == envp
+
+        ! ass-u-me no debug required
+        set debug level( 0 )
+        %if (getenvindex( "IMP_DEBUG" ) # 0) %start
+            ! ok, we want some debug levels
+            set debug level ( get env as integer( "IMP_DEBUG" ) )
+        %finish
+
+        ! ok, let's see which flavour of IMP program we have
+        s = getarg(1)
+        length( inputs ) = 0
+        b = tostring(FILE SEP)
+        length( outputs ) = 0
+
+        ! ok, now check to see if the first program parameter indicates a file list
+        %if s->inputs.(b).outputs %start
+            ! Type 1 IMP PROGRAM?
+            ! Ok, this is a suspected %begin ... %end IMP program
+            ! set up the input and output streams
+            ! argc = 1 param 0 == progname
+            ! argc = 2 param 1 == input file list/output file list
+            ! argc = 3 param 2 => we want debug mode (any value will do for the moment!)
+
+            ! Might need to disable access to the command line parameters
+            ! if this type of IMP program is written.
+            ! The only command line access possible would then be in this module
+            %if (argc > 1) %start
+                ! check for debug mode
+                %if (argc > 2) %start
+                    set debug level( debug mode ! DBGMAIN ! DBGPROG ! DBGCORE )
+                %finish
+
+                ! Check we don't have too many parameters
+                %if (argc > 3) %then errcount = errcount + 1
+            %finish
+
+        %finish %else %start
+            { no command line parameters                             }
+            { It could be a %begin .. %end program                   }
+            { or an %external %routine XXX %alias "__impmain"        }
+            { In either case no I/O is expected via the command line }
+            { However the sneaky programmer could use environment    }
+            { variables to specify if any I/O is to be used          }
+            { It is the IMP programmers responsibility to open files }
+            { and read the environment variables for I/O to be used  }
+        %finish
+
+        %if (errcount = 0) %start
+            ! No errors so start the program run
+
+            ! Initialise the runtime system
+            initialise io system
+
+            %if length( inputs ) > 0 %then parse file list( inputs, INPUT )
+            %if length( outputs ) > 0 %then parse file list( outputs, OUTPUT )
+
+            %if ((debug mode & DBGMAIN) # 0) %start
+                debug string( "IMPMAIN: About to enter the IMP program")
+                debug newline
+            %finish
+
+            ! ok, let's go IMPing!!
+            impmain
+
+            %if ((debug mode & DBGMAIN) # 0) %start
+                debug string( "IMPMAIN: Completed the IMP program")
+                debug newline
+            %finish
+
+            ! don't forget to close down the I/O system
+            terminate io system
+
+            ! Switch off all debug now we are about to exit
+            set debug level ( 0 )
+
+        %finish %else %start
+            usage
+            exit(1)
+        %finish
+
+        ! Ah! %endofprog so report success to the shell
+        exit(0)
+    %end
+
+    !--------------------------------------------------------------------------
+    ! Enable access to the environment variables
+    ! Used by routines in "imprtl-system"
+    %external %integer %name %function getenvironment
+        %result == environs
+    %end
+
+    !--------------------------------------------------------------------------
+    ! Enable access to the command line parameters
+    ! Used by routines in "imprtl-system"
+    %external %integer %name %function getarguments
+        %result == arguments
+    %end
+
+    ! for a %begin ... %end IMP program, indicate the expected command line parameters
+    %routine usage
+        ! Errors detected so show usage of %begin ... %end IMP program
+        debugstring( "  Usage: <imp program> [in1[,in2[,in3]]]" )
+        debugstring( tostring(FILE SEP) )
+        debugstring( "[out1[,out2[,out3]]] [debug]" )
+        debug newline
+        debugstring( "   NB:" )
+        debug newline
+        debugstring( "   1) The '".tostring(FILE SEP)."' is mandatory" )
+        debug newline
+        debugstring( "      It seperates the input and output file lists" )
+        debug newline
+        debugstring( "   2) debug triggers run time debug messages)" )
+        debug newline
+    %end
+
+    !--------------------------------------------------------------------------
+    %routine parse file list( %string(255) list, %integer io )
+        %string(255) x,a,c,mode,file
+        %integer streamid
+        %integer max stream
+        %integer data
+
+        %if (io = INPUT) %then max stream = get max input stream
+        %if (io = OUTPUT) %then max stream = get max output stream
+
+        x = list
+        streamid = 1
+        %while length(x) > 0 %cycle
+
+            %exit %unless (1 <= streamid <= max stream)
+
+            ! split the comma separated list
+            length(a) = 0
+            length(c) = 0
+            %if x->a.(",").c %start
+                ! comma found
+                file = a
+                x = c
+            %finish %else %start
+                ! no comma
+                file = x
+                length(x) = 0
+            %finish
+
+!            %if file->file.(":b") %start
+!                data = BINARY
+!            %finish %else %start
+!                data = TEXT
+!            %finish
+
+            %if (charno(file,length(file)) = 'b') %and (charno(file,length(file) - 1 ) = ':') %start
+                length(file) = length(file) - 2
+                data = BINARY
+            %finish %else %start
+                data = TEXT
+            %finish
+
+            %exit %unless length( file ) > 0
+
+            %if (data = TEXT) %start
+                %if (io = INPUT)  %then open input( streamid, file )
+                %if (io = OUTPUT) %then open output( streamid, file )
+            %finish
+            %if (data = BINARY) %start
+                %if (io = INPUT)  %then open binary input( streamid, file )
+                %if (io = OUTPUT) %then open binary output( streamid, file )
+            %finish
+
+            streamid = streamid + 1
+        %repeat
+    %end
+    !--------------------------------------------------------------------------
+
+%endoffile
