@@ -1,15 +1,11 @@
 @setlocal
 @echo off
 @set COM_HOME=%~dp0
-@rem @set IMP_LIB_DIR=%COM_HOME:~0,-1%
-@rem just removed the \bin\ (last 5 characters) from the path
+@set SOURCE_DIR=%COM_HOME:~0,-1%
+@rem just removed the \ (last character) from the path
 
 @set PERM_HOME=%IMP_INSTALL_HOME%\include
-@set P1_HOME=%IMP_INSTALL_HOME%\bin
-@set P2_HOME=%IMP_INSTALL_HOME%\bin
-@set P3_HOME=%IMP_INSTALL_HOME%\bin
-
-@set SOURCE_DIR=%IMP_SOURCE_HOME%\lib
+@set BIN_DIR=%IMP_INSTALL_HOME%\bin
 @set LIB_FILE=libi77.lib
 
 @pushd %SOURCE_DIR%
@@ -30,29 +26,50 @@
 @goto help
 
 :bootstrap
-@echo "BOOTSTRAP requested"
+@echo.
+@echo "LIBRARY BOOTSTRAP requested"
+@echo.
 :do_bootstrap
-@set start=ibj
-@call :do_makelib
+@rem create the libi77 library from the only C source module
+@call :do_createlib prim-rtl-file -DMSVC
+@rem compile the IMP inteface module
+@call :do_compile   imprtl-main   ibj  nolib
+@rem start with the imp run-time module ibj files
+@rem create the corresponding COFF obj files
+@rem then populate the libi77 library with the generated obj files
+@call :do_loadlib ibj
 @goto the_end
 
 :rebuild
-@echo "REBUILD requested"
+@echo.
+@echo "LIBRARY REBUILD requested"
+@echo.
 :do_rebuild
-@set start=imp
-@call :do_makelib
+@rem create the libi77 library from the only C source module
+@call :do_createlib prim-rtl-file -DMSVC
+@rem compile the IMP inteface module
+@call :do_compile   imprtl-main   imp  nolib
+@rem start with the imp run-time module imp source files
+@rem to form the corresponding ibj files
+@rem create the corresponding COFF obj files
+@rem then populate the libi77 library with the generated obj files
+@call :do_loadlib imp
 @goto the_end
 
 :install
-@echo "INSTALL requested"
+@echo.
+@echo "LIBRARY INSTALL requested"
+@echo.
 :do_install
-copy/y imprtl-main.obj %IMP_INSTALL_HOME%\lib\*
-copy/y libi77.lib      %IMP_INSTALL_HOME%\lib\*
-copy/y stdperm.imp     %IMP_INSTALL_HOME%\include\*
+@copy/y imprtl-main.obj %IMP_INSTALL_HOME%\lib\*
+@copy/y libi77.lib      %IMP_INSTALL_HOME%\lib\*
+@copy/y stdperm.imp     %IMP_INSTALL_HOME%\include\*
 @goto the_end
 
 :clean
-@echo "CLEAN requested"
+@echo.
+@echo "LIBRARY CLEAN requested"
+@echo.
 :do_clean
 @if exist *.cod del *.cod
 @if exist *.icd del *.icd
@@ -62,36 +79,40 @@ copy/y stdperm.imp     %IMP_INSTALL_HOME%\include\*
 @goto the_end
 
 :superclean
-@echo "SUPERCLEAN requested"
+@echo.
+@echo "LIBRARY SUPERCLEAN requested"
+@echo.
 :do_superclean
 @if exist *.ibj del *.ibj
 @goto do_clean
 
 :loadlinux
+@echo.
 @echo "LOADLINUX requested"
+@echo.
 :do_loadlinux
-@set TO_DIR=%SOURCE_DIR%
-@set FROM_DIR=%SOURCE_DIR%\linux
-@call :do_copyfiles
+@call :do_copyfiles %SOURCE_DIR%\linux %SOURCE_DIR%
 @goto the_end
 
 :loadwindows
+@echo.
 @echo "LOADWINDOWS requested"
+@echo.
 :do_loadwindows
-@set TO_DIR=%SOURCE_DIR%
-@set FROM_DIR=%SOURCE_DIR%\windows
-@call :do_copyfiles
+@call :do_copyfiles %SOURCE_DIR%\windows %SOURCE_DIR%
 @goto the_end
 
 :storewindows
+@echo.
 @echo "STOREWINDOWS requested"
+@echo.
 :do_storewindows
-@set FROM_DIR=%SOURCE_DIR%
-@set TO_DIR=%SOURCE_DIR%\windows
-@call :do_copyfiles
+@call :do_copyfiles %SOURCE_DIR% %SOURCE_DIR%\windows
 @goto the_end
 
 :do_copyfiles
+@set from_dir=%1
+@set to_dir=%2
 @copy/y %FROM_DIR%\implib-heap.ibj %TO_DIR%\*
 @copy/y %FROM_DIR%\implib-heap.inc %TO_DIR%\*
 @copy/y %FROM_DIR%\implib-trig.ibj %TO_DIR%\*
@@ -102,107 +123,97 @@ copy/y stdperm.imp     %IMP_INSTALL_HOME%\include\*
 @copy/y %FROM_DIR%\imprtl-main.imp %TO_DIR%\*
 @exit/b
 
-:do_makelib
-@call :do_createlib prim-rtl-file
-@call :do_appendlib imprtl-main        ignore
-@call :do_appendlib impcore-arrayutils lib
-@call :do_appendlib impcore-types      lib
-@call :do_appendlib impcore-mathutils  lib
-@call :do_appendlib impcore-signal     lib
-@call :do_appendlib impcore-strutils   lib
-@call :do_appendlib implib-arg         lib
-@call :do_appendlib implib-debug       lib
-@call :do_appendlib implib-env         lib
-@call :do_appendlib implib-heap        lib
-@call :do_appendlib implib-read        lib
-@call :do_appendlib implib-strings     lib
-@call :do_appendlib implib-trig        lib
-@call :do_appendlib imprtl-check       lib
-@call :do_appendlib imprtl-event       lib
-@call :do_appendlib imprtl-io          lib
-@call :do_appendlib imprtl-file        lib
-@call :do_appendlib imprtl-trap        lib
-@call :do_appendlib imprtl-line        lib
-@call :do_appendlib imprtl-limit       lib
+:do_loadlib
+@rem compile the various library modules
+@rem add them to the libi77 library
+@set start=%1
+
+@rem compile the implib-XXX modules
+@for %%a in (arg,debug,env,heap,read,strings,trig) do (
+    @call :do_compile "implib-%%a" %start%  lib
+)
+
+@rem compile the imprtl-XXX modules
+@for %%a in (check,event,io,file,trap,line,limit) do (
+    @call :do_compile "imprtl-%%a" %start%  lib
+)
+
+@rem compile the impcore-XXX modules
+@for %%a in (arrayutils,types,mathutils,signal,strutils) do (
+    @call :do_compile "impcore-%%a" %start%  lib
+)
 @exit/b
 
 :do_createlib
+@rem we create the library from the only source file written in C
 @set module=%1
+@set option=%2
+
+@rem compile the C source
+@cl /nologo /Gd /c /Gs /W3 /Od /arch:IA32 -D_CRT_SECURE_NO_WARNINGS /FAscu ^
+%option% /Fo%module%.obj /Fa%module%.lst %module%.c
+
 @rem Ensure we have a clean library
 @if exist %LIB_FILE% del %LIB_FILE%
-
-@rem Compile prim-rtl-file.c (aka %1)
-@call :do_c2obj %module% -DMSVC
-
 @rem Store the C source primitives object code into the library
 @lib /nologo /out:%LIB_FILE% %module%.obj
 @exit/b
 
-:do_appendlib
+:do_compile
+@rem compile the specified IMP module
 @set module=%1
-@set mode=%2
+@set start=%2
+@set append=%3
 
-@call :do_make %module%
-@if "%module%"=="imprtl-main" goto :do_appendlib_end
-@lib /nologo /out:%LIB_FILE% %LIB_FILE% %module%.obj
-:do_appendlib_end
-@exit/b
-
-:do_make
-@set module=%1
-
+@rem create the .ibj file if starting from the .imp source
+@if "%start%"=="imp" (
+    @rem We can assume that the pass1,pass2 executables are in the "release" folder
+    @rem Create the .ibj file from the .imp source file
+    @%BIN_DIR%\pass1.exe %module%.imp,%PERM_HOME%\stdperm.imp=%module%.icd:b,%module%.lst
+    @%BIN_DIR%\pass2.exe %module%.icd:b,%module%.imp=%module%.ibj,%module%.cod
+)
+@rem we assume that the appropriate pass3XXX.exe is always in the "release" folder
 @rem Create the .obj file from the .ibj file
-@if "%start%"=="imp" @call :do_imp2ibj %module%
-@call :do_ibj2obj %module%
-@exit/b
+@%BIN_DIR%\pass3coff.exe %module%.ibj %module%.obj
 
-:do_imp2obj
-@set module=%1
-@call :do_imp2ibj %module%
-@call :do_ibj2obj %module%
-@exit/b
-
-:do_imp2ibj
-@set module=%1
-@set file=%SOURCE_DIR%\%module%
-@set file=%module%
-@%P1_HOME%\pass1.exe %file%.imp,%PERM_HOME%\stdperm.imp=%file%.icd:b,%file%.lst
-@%P2_HOME%\pass2.exe %file%.icd:b,%file%.imp=%file%.ibj,%file%.cod
-@exit/b
-
-:do_ibj2obj
-@set module=%1
-@set file=%SOURCE_DIR%\%module%
-@set file=%module%
-@%P3_HOME%\pass3coff.exe %file%.ibj %file%.obj
-@exit/b
-
-:do_c2obj
-@set module=%1
-@set option=%2
-@set file=%SOURCE_DIR%\%module%
-@cl /nologo /Gd /c /Gs /W3 /Od /arch:IA32 -D_CRT_SECURE_NO_WARNINGS /FAscu %option% /Fo%file%.obj /Fa%file%.lst %file%.c
+@rem do we need to insert the objet file into the libi77 library?
+@if "%append%"=="lib" (
+    @lib /nologo /out:%LIB_FILE% %LIB_FILE% %module%.obj
+)
 @exit/b
 
 :help
 :do_help
+@echo.
 @echo  Legal parameters to the MAKE_LIB script are:
+@echo.
 @echo     bootstrap:    - each ibj file is converted to an obj file by pass3coff.exe
 @echo                   - prim-rtl-c is compiled to a .obj file
 @echo                   - a library file libi77.a is created from all the .obj files
+@echo.
 @echo     rebuild:      - similar actions to that of the 'bootstrap' parameter
 @echo                   - except the process starts with the .imp files instead of the .ibj files
+@echo.
 @echo     install:      - files released to the library folder %IMP_INSTALL_HOME%\lib are:
 @echo                         - the library file libi77.a
 @echo                         - the interface file imprtl-main.obj
+@echo.
 @echo     clean:        - all compiler generated files (except the .ibj files) are deleted
+@echo.
 @echo     superclean:   - same as 'clean' except the .ibj files are also deleted
-@echo     loadlinux:    - loads the linux specific files from the %IMP_SOURCE_HOME%\lib\linux
-@echo     loadwindows:  - loads the windows specific files from the %IMP_SOURCE_HOME%\lib\windows
-@echo     storewindows: - stores the windows specific files into the %IMP_SOURCE_HOME%\lib\windows
+@echo.
+@echo     loadlinux:    - loads the O/S specific files from the %SOURCE_HOME%\linux
+@echo.
+@echo     loadwindows:  - loads the O/S specific files from the %SOURCE_HOME%\windows
+@echo.
+@echo     storewindows: - stores the Windows O/S specific files into the %SOURCE_HOME%\windows
+@echo                         - Don't mix loadlinux then storewindows 
+@echo.
+@echo.
 @goto the_end
 
 :the_end
-@endlocal
+
 @popd
+@endlocal
 @exit/b
