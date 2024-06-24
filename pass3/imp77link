@@ -1,21 +1,18 @@
 #! /bin/bash
 
-CC = gcc ${M32}
+CC=gcc
 
-BASEDIR = ${IMP_INSTALL_HOME}
+BASEDIR=${IMP_INSTALL_HOME}
 BINDIR=${BASEDIR}/bin
 LIBDIR=${BASEDIR}/lib
 IMPLIB=${LIBDIR}/libimp77.a
 #IMPLIB=-limp77
 LDSCRIPT=${BINDIR}/ld.i77.script
 
-line="${CC} -no-pie -o $1"
+line="${CC} ${M32} -no-pie -o $1"
 
 for var in "$@"
 do
-#    compile="imp77 -c -Fc -Fs -Fi $var.imp"
-#    eval $compile
-
     line=" $line $var.o"
 done
 

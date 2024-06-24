@@ -1,7 +1,7 @@
 #!/bin/sh
 # Simple IMP compiler shell wrapper
 
-CC = gcc ${M32}
+CC=gcc
 
 # Compiler source and binary folders 
 TESTDIR=${IMP_SOURCE_HOME}
@@ -73,7 +73,7 @@ if [ -e $1 ]; then
 
     # and now check that there was one (and it's been removed)
     if [ X"$SRCNAME.imp" != X"$1" ] && [ X"$SRCNAME.i" != X"$1" ]; then
-        echo "${PROGNAME}: The source parameter has an invalid file extension" 1>&2
+        echo "${PROGNAME}: The IMP source parameter has an invalid file extension" 1>&2
         echo "${PROGNAME}: Legal file extensions are one of (.imp, .i)" 1>&2
 	    exit 1
     fi
@@ -149,7 +149,7 @@ fi
 
 if ${DO_LINK}; then
     # Linker
-    ${CC} -no-pie -o ${SRCNAME} ${SRCNAME}.o ${LINK_OPT}
+    ${CC} ${M32} -no-pie -o ${SRCNAME} ${SRCNAME}.o ${LINK_OPT}
     if [ $? -ne 0 ] ; then
         echo "imp77: Linking failure for program $1"
         exit 1
