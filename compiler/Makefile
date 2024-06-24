@@ -34,11 +34,11 @@ bootstrap: takeon.ibj pass1.ibj pass2.ibj ibj.utils.ibj icd.utils.ibj $(IMP_LIB)
 > dos2unix *.ibj
 # Now build the programs
 # First create the .o files from the .obj files
-> pass3elf takeon.ibj
-> pass3elf ibj.utils.ibj
-> pass3elf icd.utils.ibj
-> pass3elf pass1.ibj
-> pass3elf pass2.ibj
+> ${BINDIR}/pass3elf takeon.ibj
+> ${BINDIR}/pass3elf ibj.utils.ibj
+> ${BINDIR}/pass3elf icd.utils.ibj
+> ${BINDIR}/pass3elf pass1.ibj
+> ${BINDIR}/pass3elf pass2.ibj
 
 > $(CC) -o takeon takeon.o                       $(LINK_OPT)
 > $(CC) -o pass1 pass1.o icd.utils.o             $(LINK_OPT)
@@ -78,7 +78,7 @@ takeon: takeon.o
 > $(CC) -o takeon takeon.o $(LINK_OPT)
 
 i77.tables.inc: i77.grammar takeon
-> takeon i77.grammar=i77.tables.inc,i77.par.debug,i77.lex.debug
+> ${BINDIR}/takeon i77.grammar=i77.tables.inc,i77.par.debug,i77.lex.debug
 
 pass1: i77.tables.inc icd.utils.o pass1.o
 > $(CC) -o pass1 pass1.o icd.utils.o $(LINK_OPT)

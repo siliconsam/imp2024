@@ -92,27 +92,27 @@ superclean: #
 > rm -f *.obj
 
 %.o: %.ibj
-> pass3elf $<
+> ${BINDIR}/pass3elf $<
 
 %.o: %.imp
 # Ensure all IMP source files have Unix line-endings
-> imp77 -c -Fc -Fs -Fi $<
+> ${BINDIR}/imp77 -c -Fc -Fs -Fi $<
 
 %.o: %.c
 # Ensure all C source files have Unix line-endings
 > $(CC) -c $(CCFLAGS) $<
 
-initlinux: #
+loadlinux: #
 > cp ./linux/*.ibj ./*
 > cp ./linux/*.imp ./*
 > cp ./linux/*.inc ./*
 
-initwindows: #
+loadwindows: #
 > cp ./windows/*.ibj ./*
 > cp ./windows/*.imp ./*
 > cp ./windows/*.inc ./*
 
-updatelinux: #
+storelinux: #
 > cp ./implib-heap.ibj ./linux/*
 > cp ./implib-heap.inc ./linux/*
 > cp ./implib-trig.ibj ./linux/*
@@ -122,7 +122,7 @@ updatelinux: #
 > cp ./imprtl-main.ibj ./linux/*
 > cp ./imprtl-main.imp ./linux/*
 
-updatewindows: #
+storewindows: #
 > cp ./implib-heap.ibj ./windows/*
 > cp ./implib-trig.ibj ./windows/*
 > cp ./imprtl-file.ibj ./windows/*

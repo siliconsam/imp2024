@@ -1,6 +1,8 @@
 #!/bin/sh
 # Simple IMP compiler shell wrapper
 
+CC = gcc ${M32}
+
 # Compiler source and binary folders 
 TESTDIR=${IMP_SOURCE_HOME}
 RELEASEDIR=${IMP_INSTALL_HOME}
@@ -147,7 +149,7 @@ fi
 
 if ${DO_LINK}; then
     # Linker
-    gcc -m32 -no-pie -o ${SRCNAME} ${SRCNAME}.o ${LINK_OPT}
+    ${CC} -no-pie -o ${SRCNAME} ${SRCNAME}.o ${LINK_OPT}
     if [ $? -ne 0 ] ; then
         echo "imp77: Linking failure for program $1"
         exit 1
