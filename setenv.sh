@@ -32,4 +32,4 @@ if [ -z ${IMP_TOOLS_HOME} ]; then
     export IMP_TOOLS_HOME="${IMP_INSTALL_HOME}"
 fi
 
-bash&
+bash
