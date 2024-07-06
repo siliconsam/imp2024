@@ -62,7 +62,7 @@ struct label {
     int address;
     int flags;
 };
-#define MAXLABEL 5000
+#define MAXLABEL 10000
 struct label labels[MAXLABEL];
 int nl = 1;
 
