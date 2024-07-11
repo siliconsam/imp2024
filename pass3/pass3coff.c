@@ -35,6 +35,10 @@
 #define LINESTART	"_implinebase"
 #define	LINELIMIT	"_implinelimit"
 
+int MajorLevel;
+int MinorLevel;
+int RevisionLevel;
+
 // Pass 3 builds an in-store model of the application as a series of
 // literal code blocks, data blocks, and so on.
 struct item {
@@ -93,6 +97,12 @@ struct stfix {
 #define MAXSTACK 500
 struct stfix stackfix[MAXSTACK];
 int ns = 0;
+
+// The comment dictionary has comment strings zero terminated
+// - the M record points to the first character of the comment string.
+#define MAXCOMMENT 5000
+char commentd[MAXCOMMENT];
+int commentdp = 0;
 
 // The name dictionary is filled by external import or export
 // names, zero terminated - the M record points to the first
@@ -227,6 +237,24 @@ static int newspec()
     specs[nspecs].flags = 0; 
 
     return nspecs;
+}
+
+// copy a new comment into the comment dictionary, and return
+// the index of the first character
+static int newcomment(char * name)
+{
+    int lx;
+
+    lx = strlen(name);
+    if ((lx + commentdp) >= MAXCOMMENT)
+    {
+        fprintf(stderr, "Too many coments\n");
+        fprintf(stderr, "Increase the value of MAXCOMMENT\n");
+        exit(1);
+    }
+    strcpy(&commentd[commentdp], name);
+    commentdp += lx + 1;
+    return (commentdp - (lx + 1));
 }
 
 // copy a new name into the name dictionary, and return
@@ -689,6 +717,29 @@ static void readpass1(char *inname)
             cad += WORDSIZE;
             break;
 
+        case IF_VERSION:
+            // IBJ File format version
+            // Get the IBJ Major Version
+            MajorLevel = (buffer[1]<<8) | buffer[0];
+            // Get the IBJ Minor Version
+            MinorLevel = (buffer[3]<<8) | buffer[2];
+            // Get the IBJ Revision
+            RevisionLevel = (buffer[5]<<8) | buffer[4];
+
+            if (length != (3*WORDSIZE)/2)
+                fprintf(stderr, "ERR_BADRECSZ: IF_VERSION, line %d\n",lineno);
+            break;
+
+        case IF_COMMENT:
+            // A comment string
+            // make the string null terminated
+            buffer[length] = 0;
+
+            // define a data label that is external
+            current = newitem(IF_COMMENT);
+            m[current].info = newcomment((char *)buffer);
+            break;
+
         default:
             fprintf(stderr, "Unexpected tag at line#%d - not handled\n",lineno);
             // all other directives don't consume space
@@ -920,6 +971,14 @@ static void initlabels()
                 cad += m[i].size;
                 break;
 
+            case IF_VERSION:
+                // IBJ File format version data
+                break;
+
+            case IF_COMMENT:
+                // A comment string
+                break;
+
             default:
                 break;
         }
@@ -1028,6 +1087,7 @@ static int trapsize = 0;
 static int traplimitsize = 0;
 
 // the LINENO section
+// how many lines are present
 static int linecount = 0;
 static int linesize = 0;
 
@@ -1160,6 +1220,14 @@ void computesizes()
         case IF_ABSEXT:
             // external name relative offset code word
             codecount += size;
+            break;
+
+        case IF_VERSION:
+            // IBJ File format version
+            break;
+
+        case IF_COMMENT:
+            // A comment string
             break;
 
         default:
@@ -2735,6 +2803,14 @@ static void putcode(FILE *input, FILE *output)
             // relative and absolute external relocations,
             // so we can do external data fixups.... !
             cad += WORDSIZE;
+            break;
+
+        case IF_VERSION:
+            // IBJ File format version
+            break;
+
+        case IF_COMMENT:
+            // A comment string
             break;
 
         default:

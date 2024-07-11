@@ -25,6 +25,12 @@ void writeobjectrecord(FILE *outfile, int type, int count, unsigned char * data)
 #define IF_SWT         20 // U - switch table offset code word
 #define IF_LINE        21 // V - line number info for debugger
 #define IF_ABSEXT      22 // W - external name absolute offset code word (data external)
+#define IF_VERSION     23 // X - IBJ File Format version
+#define IF_COMMENT     24 // Y - Text comment string
+
+#define IBJMajor        1 // Current IBJ Major Version Level of IBJ File Format
+#define IBJMinor        0 // Current IBJ Minor Version Level of IBJ File Format
+#define IBJRevision     0 // Current IBJ Revision      Level of IBJ File Format
 
 #define WORDSIZE	4
 
