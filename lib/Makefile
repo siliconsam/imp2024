@@ -23,12 +23,12 @@ OBJS=impcore-arrayutils.o \
      imprtl-check.o \
      imprtl-event.o \
      imprtl-io.o \
-     imprtl-main.o \
      imprtl-file.o \
      imprtl-trap.o \
      imprtl-line.o \
      imprtl-limit.o \
-     prim-rtl-file.o
+     prim-rtl-file.o \
+     imprtl-main.o
 
 IBJS=impcore-arrayutils.ibj \
      impcore-types.ibj \
@@ -51,83 +51,88 @@ IBJS=impcore-arrayutils.ibj \
      imprtl-line.ibj \
      imprtl-limit.ibj
 
+LIST=implib-heap.inc \
+     implib-heap.ibj \
+     imprtl-file.inc \
+     imprtl-file.ibj \
+     imprtl-main.imp \
+     imprtl-main.ibj \
+     implib-trig.inc \
+     implib-trig.ibj
+
 all:	libimp77.a
+> @echo "Completed lib make ALL"
+
+#bootstrap: libimp77.so libimp77.a stdperm.imp
+bootstrap: libimp77.a stdperm.imp
+# install the libraries and core include file
+> @install -t $(LIBDIR) libimp77.a
+> @#install -t $(LIBDIR) libimp77.so
+> @install -t $(INCDIR) stdperm.imp
+> @echo "Completed lib make BOOTSTRAP"
 
 libimp77.a: $(OBJS)
-> ar -r libimp77.a $(OBJS)
-> ranlib libimp77.a
+> @ar -c -r libimp77.a $(OBJS)
+> @ranlib libimp77.a
+> @echo "Completed lib make LIBIMP77.A"
 
 libimp77.so: $(OBJS)
-> ${CC} -shared -fPIC -Wl,-soname,libimp77.so -o libimp77.so $(OBJS)
+> @${CC} -shared -fPIC -Wl,-soname,libimp77.so -o libimp77.so $(OBJS)
+> @echo "Completed lib make LIBIMP77.SO"
 
-bootstrap: libimp77.so libimp77.a stdperm.imp
+rebuild: libimp77.so libimp77.a stdperm.imp
 # First, install the libraries and core include file
-> install -t $(LIBDIR) libimp77.a
-> install -t $(LIBDIR) libimp77.so
-> install -t $(INCDIR) stdperm.imp
 # finally, ensure all text files have Unix line-endings
-> dos2unix *.imp
-> dos2unix *.c
+> @echo "Completed lib make REBUILD"
 
 install: libimp77.so libimp77.a stdperm.imp
 # Install the libraries and core include file
-> install -t $(LIBDIR) libimp77.a
-> install -t $(LIBDIR) libimp77.so
-> install -t $(INCDIR) stdperm.imp
+> @install -t $(LIBDIR) libimp77.a
+> @#install -t $(LIBDIR) libimp77.so
+> @install -t $(INCDIR) stdperm.imp
+> @echo "Completed lib make INSTALL"
 
 clean: #
-> rm -f libimp77.a
-> rm -f libimp77.so
-> rm -f *.o
+> @rm -f *.a
+> @rm -f *.so
+> @rm -f *.o
+> @rm -f *.cod
+> @rm -f *.icd
+> @rm -f *.lst
+> @echo "Completed lib make CLEAN"
 
-superclean: #
-> rm -f *.a
-> rm -f *.so
-> rm -f *.so.*
-> rm -f *.o
-> rm -f *.cod
-> rm -f *.ibj
-> rm -f *.icd
-> rm -f *.lst
-> rm -f *.obj
+superclean: clean
+> @rm -f *.ibj
+> @echo "Completed lib make SUPERCLEAN"
 
 %.o: %.ibj
-> ${BINDIR}/pass3elf $<
+#%.o: $(IBJS)
+> @${BINDIR}/pass3elf $<
 
-%.o: %.imp
+#%.o: %.imp
+## Ensure all IMP source files have Unix line-endings
+#> ${BINDIR}/imp77 -c -Fc -Fs -Fi $<
+
+%.ibj: %.imp
 # Ensure all IMP source files have Unix line-endings
 > ${BINDIR}/imp77 -c -Fc -Fs -Fi $<
 
 %.o: %.c
 # Ensure all C source files have Unix line-endings
-> $(CC) -c $(CCFLAGS) $<
+> @$(CC) -c $(CCFLAGS) $<
 
 loadlinux: #
-> cp ./linux/*.ibj ./*
-> cp ./linux/*.imp ./*
-> cp ./linux/*.inc ./*
+> @cp -f ./linux/* ./
+> @echo "Completed lib make LOADLINUX"
 
 loadwindows: #
-> cp ./windows/*.ibj ./*
-> cp ./windows/*.imp ./*
-> cp ./windows/*.inc ./*
+> @cp -f ./windows/* ./
+> @echo "Completed lib make LOADWINDOWS"
 
-storelinux: #
-> cp ./implib-heap.ibj ./linux/*
-> cp ./implib-heap.inc ./linux/*
-> cp ./implib-trig.ibj ./linux/*
-> cp ./implib-trig.inc ./linux/*
-> cp ./imprtl-file.ibj ./linux/*
-> cp ./imprtl-file.inc ./linux/*
-> cp ./imprtl-main.ibj ./linux/*
-> cp ./imprtl-main.imp ./linux/*
+storelinux: $(LIST)
+> @cp -f $(LIST) ./linux
+> @echo "Completed lib make STORELINUX"
 
-storewindows: #
-> cp ./implib-heap.ibj ./windows/*
-> cp ./implib-trig.ibj ./windows/*
-> cp ./imprtl-file.ibj ./windows/*
-> cp ./imprtl-main.ibj ./windows/*
-> cp ./imprtl-main.imp ./windows/*
-> cp ./implib-heap.inc ./windows/*
-> cp ./implib-trig.inc ./windows/*
-> cp ./imprtl-file.inc ./windows/*
+storewindows: $(LIST)
+> @cp -f $(LIST) ./windows
+> @echo "Completed lib make STOREWINDOWS"
