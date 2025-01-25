@@ -35,7 +35,7 @@
     ! that provide a c interface
     !--------------------------------------------------------------------------
     %external %routine StartImp %c
-                       %alias "_main" %c
+                       %alias "main" %c
                        ( %integer %name envp,
                          %integer %name argv,
                          %integer argc )
@@ -107,7 +107,7 @@
             terminate io system
 
             ! and good bye!!!!
-            %stop
+            exit(1)
 
         %finish
 
