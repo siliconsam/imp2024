@@ -107,7 +107,7 @@
             terminate io system
 
             ! and good bye!!!!
-            %stop
+            exit(1)
 
         %finish
 
